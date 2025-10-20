@@ -14,6 +14,7 @@ import {
   Locate,
   WifiOff,
   AlertCircle,
+  X,
 } from "lucide-react";
 import BusMap from "./BusMap";
 import LiveBusView from "./components/LiveBusView";
@@ -50,8 +51,8 @@ const App = () => {
   const [showMap, setShowMap] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // New state for the information modal
-  const [showInfoModal, setShowInfoModal] = useState(false);
+  // New state for the notification banner
+  const [showInfoBanner, setShowInfoBanner] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
   const [journeyFrom, setJourneyFrom] = useState("");
@@ -73,19 +74,19 @@ const App = () => {
   const locationTimeoutRef = useRef(null);
   const journeySearchTimeoutRef = useRef(null);
 
-  // Check for the "dontShowInfoModal" flag in localStorage on component mount
+  // Check for the "dontShowInfoBanner" flag on mount
   useEffect(() => {
-    const hasSeenModal = localStorage.getItem("dontShowInfoModal");
-    if (!hasSeenModal) {
-      setShowInfoModal(true);
+    const hasSeenBanner = localStorage.getItem("dontShowInfoBanner");
+    if (!hasSeenBanner) {
+      setShowInfoBanner(true);
     }
   }, []);
 
-  const handleInfoModalAgree = () => {
+  const handleInfoBannerAgree = () => {
     if (dontShowAgain) {
-      localStorage.setItem("dontShowInfoModal", "true");
+      localStorage.setItem("dontShowInfoBanner", "true");
     }
-    setShowInfoModal(false);
+    setShowInfoBanner(false);
   };
 
   const fetchVehicleJourney = async (vehicleId) => {
@@ -95,9 +96,7 @@ const App = () => {
   };
 
   const fetchVehicleDetails = async (vehicleId) => {
-    const url = `https://api.tfl.gov.uk/Vehicle/${encodeURIComponent(
-      vehicleId
-    )}/Arrivals`;
+    const url = `https://api.tfl.gov.uk/Vehicle/${encodeURIComponent(vehicleId)}/Arrivals`;
     const params = new URLSearchParams({
       app_id: TFL_APP_ID,
       app_key: TFL_APP_KEY,
@@ -173,13 +172,8 @@ const App = () => {
             }, 100);
           },
           (highAccError) => {
-            console.error(
-              "High-accuracy geolocation also failed:",
-              highAccError
-            );
-            setLocationError(
-              "Unable to get your location. Please check permissions or try again."
-            );
+            console.error("High-accuracy geolocation also failed:", highAccError);
+            setLocationError("Unable to get your location. Please check permissions or try again.");
             setLoading(false);
           },
           {
@@ -312,11 +306,7 @@ const App = () => {
     setJourneyError(null);
 
     try {
-      const results = await fetchJourneyPlan(
-        journeyFrom,
-        journeyTo,
-        userLocation
-      );
+      const results = await fetchJourneyPlan(journeyFrom, journeyTo, userLocation);
       setJourneyResults(results);
     } catch (err) {
       console.error("Error fetching journey plan:", err);
@@ -343,52 +333,50 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-      {/* Information Modal */}
-      {showInfoModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate-in fade-in duration-300">
-            <div className="flex items-center mb-4">
-              <Info className="w-6 h-6 text-blue-600 mr-3" />
-              <h2 className="text-xl font-bold text-gray-900">
-                Welcome to London Bus Tracker
-              </h2>
-            </div>
-            <p className="text-gray-700 mb-4">
-              This service is completely free with no hidden charges. To keep it
-              free, we display non-intrusive advertisements. Your support helps
-              us maintain this platform for all London transport users.
-            </p>
-            <div className="flex items-center mb-4">
-              <input
-                type="checkbox"
-                id="dontShowAgain"
-                checked={dontShowAgain}
-                onChange={(e) => setDontShowAgain(e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-              />
-              <label
-                htmlFor="dontShowAgain"
-                className="ml-2 text-sm text-gray-600"
+      {/* Information Banner - Top Right Corner */}
+      {showInfoBanner && (
+        <div className="fixed top-4 right-4 z-50 max-w-xs w-full animate-in slide-in-from-top duration-300">
+          <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-start">
+                <Info className="w-5 h-5 text-blue-600 mt-0.5 mr-2 flex-shrink-0" />
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Free Service Notice</h3>
+                  <p className="text-xs text-gray-600">
+                    This service is free with no hidden charges. Ads help keep it running.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowInfoBanner(false)}
+                className="text-gray-400 hover:text-gray-600 ml-2 flex-shrink-0"
+                aria-label="Close"
               >
-                Don't show this message again
-              </label>
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <button
-              onClick={handleInfoModalAgree}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
-              I Agree
-            </button>
+            <div className="flex items-center justify-between mt-3">
+              <label className="flex items-center text-xs text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={dontShowAgain}
+                  onChange={(e) => setDontShowAgain(e.target.checked)}
+                  className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500 mr-2"
+                />
+                Don't show again
+              </label>
+              <button
+                onClick={handleInfoBannerAgree}
+                className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                I Agree
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       <header className="bg-white shadow-sm border-b border-gray-100">
-        <script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2049627200338766"
-          crossorigin="anonymous"
-        ></script>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
@@ -471,11 +459,6 @@ const App = () => {
             </div>
           )}
         </div>
-        <script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2049627200338766"
-          crossorigin="anonymous"
-        ></script>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -527,7 +510,10 @@ const App = () => {
             />
           )}
           {activeTab === "enthusiast" && (
-            <EnthusiastHub favorites={favorites} nearestStops={nearestStops} />
+            <EnthusiastHub
+              favorites={favorites}
+              nearestStops={nearestStops}
+            />
           )}
           {activeTab === "vehicle" && (
             <VehicleTrackerView
