@@ -11,60 +11,98 @@ import {
   CreditCard,
   Calendar,
   CheckCircle,
+  Mail
 } from "lucide-react";
+import { useUser } from "../contexts/UserContexts";
 
 const premiumFeatures = [
   {
     icon: <Bell className="w-6 h-6" />,
     title: "Journey Alerts",
-    description: "Get real-time email or push notifications when your bus is delayed or cancelled.",
+    description:
+      "Get real-time email or push notifications when your bus is delayed or cancelled.",
   },
   {
     icon: <BarChart3 className="w-6 h-6" />,
     title: "Reliability Insights",
-    description: "See how often your bus runs on time—based on historical TfL data.",
+    description:
+      "See how often your bus runs on time—based on historical TfL data.",
   },
   {
     icon: <Map className="w-6 h-6" />,
     title: "Offline Map Mode",
-    description: "View bus stops and routes without internet—perfect for tunnels and low-signal areas.",
+    description:
+      "View bus stops and routes without internet—perfect for tunnels and low-signal areas.",
   },
   {
     icon: <Moon className="w-6 h-6" />,
     title: "Custom Themes",
-    description: "Choose from dark mode, high-contrast, or minimalist UI skins.",
+    description:
+      "Choose from dark mode, high-contrast, or minimalist UI skins.",
   },
   {
     icon: <Smartphone className="w-6 h-6" />,
     title: "Ad-Free Experience",
-    description: "Enjoy a clean, distraction-free interface with no banners or ads.",
+    description:
+      "Enjoy a clean, distraction-free interface with no banners or ads.",
   },
   {
     icon: <CreditCard className="w-6 h-6" />,
     title: "Multi-Modal Journeys",
-    description: "Plan trips using buses, Tube, DLR, walking, and cycling—all in one view.",
+    description:
+      "Plan trips using buses, Tube, DLR, walking, and cycling—all in one view.",
   },
 ];
 
-// Mock subscription status (in real app: from context or API)
-const mockSubscription = {
-  isActive: true,
-  daysRemaining: 45,
-};
-
-const pricingTiers = [
-  { label: "1 Month", price: "£2.99", days: 30 },
-  { label: "3 Months", price: "£7.99", days: 90 },
-  { label: "6 Months", price: "£14.99", days: 180 },
-  { label: "1 Year", price: "£24.99", days: 365 },
+const pricingPlans = [
+  { label: "Monthly", price: "£2.99 / month", interval: "month", days: 30 },
+  { label: "Yearly", price: "£24.99 / year", interval: "year", days: 365 },
 ];
 
 const PremiumPage = () => {
+  const { subscription, updateSubscription } = useUser();
   const [selectedTier, setSelectedTier] = useState(null);
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handlePurchase = (tier) => {
-    // Later: integrate payment flow (Stripe, etc.)
-    alert(`You selected: ${tier.label} for ${tier.price}. Payment integration coming soon!`);
+  const handlePurchase = async () => {
+    setError("");
+    if (!email) {
+      setError("Please enter your email address.");
+      return;
+    }
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(
+        "http://localhost:5000/api/create-checkout-session",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, plan: selectedTier.label }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (!data.url) {
+        throw new Error("Invalid response from server.");
+      }
+
+      window.location.href = data.url;
+    } catch (err) {
+      setError(err.message || "An unexpected error occurred.");
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -79,12 +117,13 @@ const PremiumPage = () => {
             London Bus Tracker <span className="text-indigo-600">Plus</span>
           </h1>
           <p className="mt-3 text-lg text-gray-600 max-w-2xl mx-auto">
-            Unlock powerful features to make your commute smarter, smoother, and stress-free.
+            Unlock powerful features to make your commute smarter, smoother, and
+            stress-free.
           </p>
         </div>
 
-        {/* Subscription Status (if active) */}
-        {mockSubscription.isActive && (
+        {/* Subscription Status */}
+        {subscription?.isActive && (
           <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-10 max-w-md mx-auto text-center">
             <div className="flex items-center justify-center space-x-2 text-green-700 font-medium">
               <CheckCircle className="w-5 h-5" />
@@ -92,12 +131,12 @@ const PremiumPage = () => {
             </div>
             <p className="mt-1 text-green-600">
               <Calendar className="w-4 h-4 inline mr-1" />
-              {mockSubscription.daysRemaining} days remaining
+              {subscription.daysRemaining} days remaining
             </p>
           </div>
         )}
 
-        {/* Premium Features Grid */}
+        {/* Features */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
           {premiumFeatures.map((feature, index) => (
             <div
@@ -109,51 +148,114 @@ const PremiumPage = () => {
                   {feature.icon}
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">{feature.title}</h3>
-                  <p className="mt-1 text-sm text-gray-600">{feature.description}</p>
+                  <h3 className="font-semibold text-gray-900">
+                    {feature.title}
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-600">
+                    {feature.description}
+                  </p>
                 </div>
               </div>
             </div>
           ))}
         </div>
 
-        {/* Pricing Tiers */}
+        {/* Pricing & Email Form */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 mb-8">
-          <h2 className="text-xl font-bold text-gray-900 text-center mb-6">Choose Your Plan</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-4xl mx-auto">
-            {pricingTiers.map((tier, index) => (
-              <div
-                key={index}
-                className={`border rounded-xl p-5 flex flex-col items-center text-center transition-all ${
-                  selectedTier?.label === tier.label
-                    ? "ring-2 ring-indigo-500 border-indigo-500 bg-indigo-50"
-                    : "border-gray-200 hover:border-indigo-300"
+          <h2 className="text-xl font-bold text-gray-900 text-center mb-6">
+            Choose Your Subscription
+          </h2>
+
+          <div className="flex justify-center space-x-4 mb-6">
+            {pricingPlans.map((plan) => (
+              <button
+                key={plan.label}
+                className={`px-6 py-2 rounded-lg font-medium transition-all ${
+                  selectedTier?.label === plan.label
+                    ? "bg-indigo-600 text-white shadow-md"
+                    : "bg-gray-100 text-gray-700 hover:bg-indigo-50"
                 }`}
-                onClick={() => setSelectedTier(tier)}
+                onClick={() => {
+                  setSelectedTier(plan);
+                  setEmail("");
+                  setError("");
+                }}
               >
-                <h3 className="font-bold text-gray-900">{tier.label}</h3>
-                <p className="text-2xl font-bold text-indigo-600 mt-2">{tier.price}</p>
-                <p className="text-xs text-gray-500 mt-1">({tier.days} days access)</p>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handlePurchase(tier);
-                  }}
-                  className="mt-4 w-full py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
-                >
-                  Select
-                </button>
-              </div>
+                {plan.label}
+              </button>
             ))}
           </div>
+
+          {selectedTier ? (
+            <div className="space-y-4">
+              <div className="text-center">
+                <p className="text-2xl font-bold text-indigo-600">
+                  {selectedTier.price}
+                </p>
+              </div>
+
+              {/* Email Input */}
+              <div className="max-w-md mx-auto space-y-2">
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Email address
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="email"
+                    id="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="you@example.com"
+                  />
+                </div>
+              </div>
+
+              {/* Error Message */}
+              {error && (
+                <div className="max-w-md mx-auto flex items-center text-red-600 text-sm">
+                  <AlertCircle className="w-4 h-4 mr-1" />
+                  {error}
+                </div>
+              )}
+
+              {/* Subscribe Button */}
+              <div className="text-center">
+                <button
+                  onClick={handlePurchase}
+                  disabled={isSubmitting}
+                  className={`mt-2 px-6 py-2 rounded-lg font-medium transition-colors ${
+                    isSubmitting
+                      ? "bg-indigo-400 cursor-not-allowed"
+                      : "bg-indigo-600 hover:bg-indigo-700"
+                  } text-white`}
+                >
+                  {isSubmitting ? "Redirecting..." : "Subscribe Now"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-center text-gray-500">
+              Select a plan to continue
+            </p>
+          )}
+
           <p className="text-center text-xs text-gray-500 mt-6">
-            All plans auto-renew unless cancelled. No free trial. You can top up anytime.
+            Subscriptions renew automatically unless cancelled. Manage or cancel
+            anytime in your account settings.
           </p>
         </div>
 
-        {/* Footer Note */}
         <div className="text-center text-sm text-gray-500">
-          <p>Core bus tracking remains free. LBT Plus unlocks advanced features.</p>
+          <p>
+            Core bus tracking remains free. LBT Plus unlocks advanced features.
+          </p>
         </div>
       </div>
     </div>

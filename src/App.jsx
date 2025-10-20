@@ -6,7 +6,7 @@ import {
   Bus,
   Navigation,
   Info,
-  Settings,
+  Settings as SettingsIcon,
   Star,
   AlertTriangle,
   RefreshCw,
@@ -15,7 +15,7 @@ import {
   WifiOff,
   AlertCircle,
   X,
-  Menu
+  Menu,
 } from "lucide-react";
 import BusMap from "./BusMap";
 import LiveBusView from "./components/LiveBusView";
@@ -25,6 +25,9 @@ import VehicleTrackerView from "./components/VehicleTrackerView";
 import BusMapComponent from "./components/BusMapComponent";
 import ServiceDisruptionsTab from "./components/ServiceDisruptions";
 import PremiumPage from "./components/PremiumPage";
+import SettingsPage from "./components/Settings";
+import { useUser } from "./contexts/UserContexts";
+
 import {
   fetchNearestStops,
   fetchLiveArrivals,
@@ -41,6 +44,8 @@ const App = () => {
   const [activeTab, setActiveTab] = useState("live");
   const [vehicleIdInput, setVehicleIdInput] = useState("");
   const [userLocation, setUserLocation] = useState(null);
+  const [adblockDetected, setAdblockDetected] = useState(false);
+  const [adblockModalStep, setAdblockModalStep] = useState("initial"); // 'initial' | 'instructions'
   const [nearestStops, setNearestStops] = useState([]);
   const [selectedStop, setSelectedStop] = useState(null);
   const [liveArrivals, setLiveArrivals] = useState([]);
@@ -53,7 +58,8 @@ const App = () => {
   const [locationError, setLocationError] = useState(null);
   const [showMap, setShowMap] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
+  const [theme, setTheme] = useState("light"); // New theme state
+  const { subscription } = useUser();
   // New state for the notification banner
   const [showInfoBanner, setShowInfoBanner] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
@@ -72,7 +78,8 @@ const App = () => {
     { id: "journey", label: "Journey Planner", icon: Navigation },
     { id: "vehicle", label: "Vehicle Tracker", icon: Navigation },
     { id: "disruptions", label: "Service Disruptions", icon: AlertTriangle },
-    { id: "plus", label: "LBT Plus", icon: Star }
+    { id: "settings", label: "Settings", icon: SettingsIcon }, // Added Settings tab
+    { id: "plus", label: "LBT Plus", icon: Star },
   ];
 
   const searchTimeoutRef = useRef(null);
@@ -85,7 +92,85 @@ const App = () => {
     if (!hasSeenBanner) {
       setShowInfoBanner(true);
     }
+
+    // Load saved theme from localStorage
+    const savedTheme = localStorage.getItem("appTheme");
+    if (savedTheme) {
+      setTheme(savedTheme);
+    }
   }, []);
+
+  // Apply theme to document body
+  useEffect(() => {
+    document.body.className = getThemeClasses(theme);
+    localStorage.setItem("appTheme", theme);
+  }, [theme]);
+
+  // Adblock detection
+  useEffect(() => {
+    if (subscription?.isActive) return; // Skip if user has active subscription
+    const checkAdblock = () => {
+      const adElement = document.querySelector(".adsbygoogle");
+      if (adElement) {
+        const { offsetHeight, offsetWidth } = adElement;
+        if (offsetHeight === 0 && offsetWidth === 0) {
+          setAdblockDetected(true);
+        }
+      } else {
+        setAdblockDetected(true);
+      }
+    };
+
+    // Small delay to allow ad script to load (if not blocked)
+    const timer = setTimeout(() => {
+      if (!localStorage.getItem("dismissedAdblockNotice")) {
+        checkAdblock();
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [subscription]);
+
+  const getThemeClasses = (themeName) => {
+    switch (themeName) {
+      case "dark":
+        return "bg-gray-900 text-white";
+      case "high-contrast":
+        return "bg-black text-yellow-300";
+      case "minimalist":
+        return "bg-gray-50 text-gray-800";
+      default:
+        return "bg-gradient-to-br from-blue-50 via-white to-indigo-50";
+    }
+  };
+
+  // Get input text color based on theme
+  const getInputTextColor = () => {
+    switch (theme) {
+      case "dark":
+        return "text-white placeholder-gray-400";
+      case "high-contrast":
+        return "text-yellow-300 placeholder-yellow-400";
+      case "minimalist":
+        return "text-gray-800 placeholder-gray-500";
+      default:
+        return "text-gray-900 placeholder-gray-500";
+    }
+  };
+
+  // Get input background and border colors based on theme
+  const getInputBgAndBorder = () => {
+    switch (theme) {
+      case "dark":
+        return "bg-gray-800 border-gray-700 focus:border-blue-500";
+      case "high-contrast":
+        return "bg-black border-yellow-500 focus:border-yellow-400";
+      case "minimalist":
+        return "bg-white border-gray-200 focus:border-blue-500";
+      default:
+        return "bg-white border-gray-300 focus:border-blue-500";
+    }
+  };
 
   const handleInfoBannerAgree = () => {
     if (dontShowAgain) {
@@ -101,7 +186,9 @@ const App = () => {
   };
 
   const fetchVehicleDetails = async (vehicleId) => {
-    const url = `https://api.tfl.gov.uk/Vehicle/${encodeURIComponent(vehicleId)}/Arrivals`;
+    const url = `https://api.tfl.gov.uk/Vehicle/${encodeURIComponent(
+      vehicleId
+    )}/Arrivals`;
     const params = new URLSearchParams({
       app_id: TFL_APP_ID,
       app_key: TFL_APP_KEY,
@@ -177,8 +264,13 @@ const App = () => {
             }, 100);
           },
           (highAccError) => {
-            console.error("High-accuracy geolocation also failed:", highAccError);
-            setLocationError("Unable to get your location. Please check permissions or try again.");
+            console.error(
+              "High-accuracy geolocation also failed:",
+              highAccError
+            );
+            setLocationError(
+              "Unable to get your location. Please check permissions or try again."
+            );
             setLoading(false);
           },
           {
@@ -311,7 +403,11 @@ const App = () => {
     setJourneyError(null);
 
     try {
-      const results = await fetchJourneyPlan(journeyFrom, journeyTo, userLocation);
+      const results = await fetchJourneyPlan(
+        journeyFrom,
+        journeyTo,
+        userLocation
+      );
       setJourneyResults(results);
     } catch (err) {
       console.error("Error fetching journey plan:", err);
@@ -336,9 +432,131 @@ const App = () => {
     setFavorites(newFavorites);
   };
 
+  // Theme-specific header classes
+  const getHeaderClasses = () => {
+    switch (theme) {
+      case "dark":
+        return "bg-gray-800 shadow-sm border-b border-gray-700";
+      case "high-contrast":
+        return "bg-black shadow-sm border-b border-yellow-500";
+      case "minimalist":
+        return "bg-white shadow-sm border-b border-gray-200";
+      default:
+        return "bg-white shadow-sm border-b border-gray-100";
+    }
+  };
+
+  const getTextColor = (baseColor, isPlaceholder = false) => {
+    switch (theme) {
+      case "high-contrast":
+        if (isPlaceholder) return "text-yellow-300"; // brighter, more visible
+        return "text-yellow-1000";
+
+      case "dark":
+        if (isPlaceholder) return "text-gray-400"; // readable but still looks like a placeholder
+        if (baseColor.includes("white")) return "text-gray-100";
+        if (baseColor.includes("gray")) return "text-gray-200";
+        return "text-gray-100";
+
+      case "minimalist":
+        if (isPlaceholder) return "text-gray-500";
+        if (baseColor.includes("gray-900")) return "text-gray-800";
+        if (baseColor.includes("gray-700")) return "text-gray-700";
+        if (baseColor.includes("gray-500")) return "text-gray-600";
+        return "text-gray-800";
+
+      default:
+        return baseColor || "text-gray-900";
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+    <div className="min-h-screen">
       {/* Information Banner - Top Right Corner */}
+      {/* Adblock Detected Banner */}
+      {/* Adblock Detected Full-Screen Modal */}
+      {/* Adblock Detected Full-Screen Modal */}
+      {adblockDetected && !localStorage.getItem("dismissedAdblockNotice") && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in duration-300">
+            <div className="p-6">
+              {adblockModalStep === "initial" ? (
+                <>
+                  <div className="flex justify-center mb-4">
+                    <AlertCircle className="w-12 h-12 text-orange-500" />
+                  </div>
+                  <h2 className="text-xl font-bold text-center text-gray-900 mb-3">
+                    Support This Free Service
+                  </h2>
+                  <p className="text-gray-600 text-center mb-6">
+                    We use Google AdSense to keep London Bus Tracker free for
+                    everyone. Please consider disabling your ad blocker — it
+                    really helps us out!
+                  </p>
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => setAdblockModalStep("instructions")}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+                    >
+                      I’ll disable it
+                    </button>
+                    <button
+                      onClick={() => setAdblockDetected(false)}
+                      className="w-full text-gray-600 hover:text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+                    >
+                      Nevermind
+                    </button>
+                  </div>
+                </>
+              ) : (
+                // Instructions Step
+                <>
+                  <div className="flex justify-center mb-4">
+                    <Info className="w-12 h-12 text-blue-500" />
+                  </div>
+                  <h2 className="text-xl font-bold text-center text-gray-900 mb-4">
+                    How to Disable Your Ad Blocker
+                  </h2>
+                  <div className="text-gray-700 space-y-3 text-sm mb-6">
+                    <p>
+                      1. Look for the ad blocker icon in your browser’s address
+                      bar (usually 🛡️, 🚫, or a hand).
+                    </p>
+                    <p>
+                      2. Click the icon and choose{" "}
+                      <strong>“Disable on this site”</strong> or similar.
+                    </p>
+                    <p>
+                      3. Refresh the page to load ads and support this service.
+                    </p>
+                    <p className="text-xs text-gray-500 italic">
+                      Don’t worry — we only show non-intrusive Google AdSense
+                      ads.
+                    </p>
+                  </div>
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => {
+                        localStorage.setItem("dismissedAdblockNotice", "true");
+                        setAdblockDetected(false);
+                      }}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+                    >
+                      I’ve disabled it
+                    </button>
+                    <button
+                      onClick={() => setAdblockModalStep("initial")}
+                      className="w-full text-gray-600 hover:text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+                    >
+                      ← Go back
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {showInfoBanner && (
         <div className="fixed top-4 right-4 z-50 max-w-xs w-full animate-in slide-in-from-top duration-300">
           <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
@@ -346,9 +564,12 @@ const App = () => {
               <div className="flex items-start">
                 <Info className="w-5 h-5 text-blue-600 mt-0.5 mr-2 flex-shrink-0" />
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Free Service Notice</h3>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                    Free Service Notice
+                  </h3>
                   <p className="text-xs text-gray-600">
-                    This service is free with no hidden charges. Ads help keep it running.
+                    This service is free with no hidden charges. Ads help keep
+                    it running.
                   </p>
                 </div>
               </div>
@@ -381,7 +602,7 @@ const App = () => {
         </div>
       )}
 
-      <header className="bg-white shadow-sm border-b border-gray-100">
+      <header className={getHeaderClasses()}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
@@ -389,14 +610,20 @@ const App = () => {
                 <Bus className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">
+                <h1
+                  className={`text-xl font-bold ${getTextColor(
+                    "text-gray-900"
+                  )}`}
+                >
                   London Bus Tracker
                 </h1>
-                <p className="text-xs text-gray-500">Live TfL Bus Data</p>
+                <p className={`text-xs ${getTextColor("text-gray-500")}`}>
+                  Live TfL Bus Data
+                </p>
               </div>
             </div>
 
-            <div className="hidden md:flex space-x-1 bg-white p-1 rounded-xl shadow-sm">
+            <div className="hidden md:flex space-x-1 bg-white/10 p-1 rounded-xl backdrop-blur-sm">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
@@ -407,7 +634,9 @@ const App = () => {
                   className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${
                     activeTab === tab.id
                       ? "bg-blue-600 text-white shadow-md"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                      : `${getTextColor(
+                          "text-gray-600"
+                        )} hover:text-gray-900 hover:bg-gray-100/50`
                   }`}
                 >
                   <tab.icon className="w-4 h-4" />
@@ -417,7 +646,7 @@ const App = () => {
             </div>
 
             <button
-              className="md:hidden flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100 focus:outline-none"
+              className="md:hidden flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100/50 focus:outline-none"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               aria-label="Toggle navigation menu"
             >
@@ -453,7 +682,9 @@ const App = () => {
                     className={`flex items-center space-x-3 px-4 py-3 rounded-lg font-medium ${
                       activeTab === tab.id
                         ? "bg-blue-600 text-white"
-                        : "text-gray-700 hover:bg-gray-100"
+                        : `${getTextColor(
+                            "text-gray-700"
+                          )} hover:bg-gray-100/50`
                     }`}
                   >
                     <tab.icon className="w-5 h-5" />
@@ -491,6 +722,9 @@ const App = () => {
               favorites={favorites}
               toggleFavorite={toggleFavorite}
               fetchVehicleJourney={fetchVehicleJourney}
+              theme={theme}
+              getInputTextColor={getInputTextColor}
+              getInputBgAndBorder={getInputBgAndBorder}
             />
           )}
           {activeTab === "journey" && (
@@ -512,13 +746,13 @@ const App = () => {
               setToSuggestions={setToSuggestions}
               handleAutocomplete={handleAutocomplete}
               handlePlanJourney={handlePlanJourney}
+              theme={theme}
+              getInputTextColor={getInputTextColor}
+              getInputBgAndBorder={getInputBgAndBorder}
             />
           )}
           {activeTab === "enthusiast" && (
-            <EnthusiastHub
-              favorites={favorites}
-              nearestStops={nearestStops}
-            />
+            <EnthusiastHub favorites={favorites} nearestStops={nearestStops} />
           )}
           {activeTab === "vehicle" && (
             <VehicleTrackerView
@@ -526,11 +760,32 @@ const App = () => {
               setVehicleIdInput={setVehicleIdInput}
               fetchVehicleDetails={fetchVehicleDetails}
               BusMapComponent={BusMapComponent}
+              theme={theme}
+              getInputTextColor={getInputTextColor}
+              getInputBgAndBorder={getInputBgAndBorder}
             />
           )}
           {activeTab === "disruptions" && <ServiceDisruptionsTab />}
           {activeTab === "plus" && <PremiumPage />}
+          {activeTab === "settings" && (
+            <SettingsPage
+              currentTheme={theme}
+              onThemeChange={setTheme}
+              setActiveTab={setActiveTab} // 👈 passing the function down
+            />
+          )}
         </div>
+      </div>
+      {/* Adblock detection placeholder - invisible */}
+      <div className="hidden">
+        <ins
+          className="adsbygoogle"
+          style={{ display: "block", height: "1px" }}
+          data-ad-client="ca-pub-YOUR_PUB_ID" // Replace with your actual AdSense publisher ID
+          data-ad-slot="0000000000" // Use a real or dummy ad slot
+          data-ad-format="auto"
+          data-full-width-responsive="true"
+        ></ins>
       </div>
     </div>
   );

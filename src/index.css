@@ -4,3 +4,32 @@
 button {
     cursor: pointer
 }
+
+/* index.css */
+
+/* DARK THEME */
+[data-theme='dark'] input::placeholder,
+[data-theme='dark'] textarea::placeholder {
+  /* Softer gray to stay visible on dark backgrounds */
+  @apply placeholder-gray-400;
+}
+
+/* HIGH-CONTRAST THEME */
+[data-theme='high-contrast'] input::placeholder,
+[data-theme='high-contrast'] textarea::placeholder {
+  /* Bright but not neon — yellow-300 has enough luminance to pop */
+  @apply placeholder-yellow-300;
+}
+
+/* MINIMALIST THEME */
+[data-theme='minimalist'] input::placeholder,
+[data-theme='minimalist'] textarea::placeholder {
+  /* Clean and subtle, still readable */
+  @apply placeholder-gray-500;
+}
+
+/* DEFAULT / LIGHT THEME */
+input::placeholder,
+textarea::placeholder {
+  @apply placeholder-gray-600;
+}

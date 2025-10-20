@@ -456,9 +456,7 @@ const LiveBusView = ({
             </div>
           </div>
           <div className="p-4">
-            <h4 className="font-semibold text-gray-800 mb-3">
-              Stop Timetable
-            </h4>
+            <h4 className="font-semibold text-gray-800 mb-3">Stop Timetable</h4>
             {journeyDataLoading ? (
               <div className="text-center py-4">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
@@ -925,7 +923,7 @@ const LiveBusView = ({
               )}
               <span>
                 {timeFormat === "minutes"
-                  ? "Switch to 18:00"
+                  ? "Switch to HH:MM"
                   : "Switch to Minutes"}
               </span>
             </button>

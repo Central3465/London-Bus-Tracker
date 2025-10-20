@@ -155,7 +155,8 @@ export const fetchTflBusSchedule = async (lineId) => {
 };
 
 // Fetch nearest bus stops to user's location with caching
-export const fetchNearestStops = async (lat, lng) => {
+export const fetchNearestStops = async (lat, lng, radius = 200) => {
+  const url = `https://api.tfl.gov.uk/StopPoint?lat=${lat}&lon=${lng}&stopTypes=NaptanPublicBusCoachTram&radius=${radius}`;
   const cacheKey = `stops_${lat}_${lng}`;
   const cached = apiCache.get(cacheKey);
 
