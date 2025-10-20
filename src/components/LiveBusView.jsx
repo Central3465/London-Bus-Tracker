@@ -15,6 +15,9 @@ import {
   X,
   Calendar,
   CalendarClock,
+  Heart,
+  Loader,
+  Info,
 } from "lucide-react";
 import BusMap from "../BusMap";
 import { fetchTflRouteSequence } from "../utils/api";
@@ -46,6 +49,16 @@ const LiveBusView = ({
   const [vehicleJourneyData, setVehicleJourneyData] = useState(null);
   const [journeyDataLoading, setJourneyDataLoading] = useState(false);
   const [journeyDataSource, setJourneyDataSource] = useState("");
+  
+  // New state for all stops search
+  const [allStopsSearchQuery, setAllStopsSearchQuery] = useState("");
+  const [allStopsResults, setAllStopsResults] = useState([]);
+  const [allStopsLoading, setAllStopsLoading] = useState(false);
+  const [allStopsError, setAllStopsError] = useState(null);
+  const [showAllStopsSearch, setShowAllStopsSearch] = useState(false);
+  const [selectedAllStop, setSelectedAllStop] = useState(null);
+  const [allStopTrips, setAllStopTrips] = useState([]);
+  const [tripsLoading, setTripsLoading] = useState(false);
 
   const resolveStopName = async (atcoOrNaptanId) => {
     if (!atcoOrNaptanId) return "Unknown Stop";
@@ -61,6 +74,139 @@ const LiveBusView = ({
       return atcoOrNaptanId;
     }
   };
+
+  // Fetch all TfL stops based on search query
+  const searchAllStops = async (query) => {
+    if (!query.trim()) {
+      setAllStopsResults([]);
+      return;
+    }
+    
+    setAllStopsLoading(true);
+    setAllStopsError(null);
+    
+    try {
+      const res = await fetch(
+        `https://api.tfl.gov.uk/StopPoint/Search/${encodeURIComponent(query)}`
+      );
+      
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      setAllStopsResults(data.matches || []);
+    } catch (err) {
+      console.error("Error searching stops:", err);
+      setAllStopsError("Failed to search stops. Please try again.");
+      setAllStopsResults([]);
+    } finally {
+      setAllStopsLoading(false);
+    }
+  };
+
+  // Fetch departures from TfL API (primary) with bustimes.org as backup
+  const fetchStopDepartures = async (stop) => {
+    if (!stop || !stop.id) return;
+    
+    setTripsLoading(true);
+    setAllStopTrips([]);
+    setSelectedAllStop(stop);
+    
+    try {
+      // First, try TfL API
+      const tflResponse = await fetch(
+        `https://api.tfl.gov.uk/StopPoint/${stop.id}/Arrivals`
+      );
+      
+      if (tflResponse.ok) {
+        const tflData = await tflResponse.json();
+        
+        if (Array.isArray(tflData) && tflData.length > 0) {
+          const processedTrips = tflData.map(arrival => ({
+            lineId: arrival.lineId || arrival.lineName || "Unknown Line",
+            destinationName: arrival.destinationName || "Unknown Destination",
+            expectedArrival: arrival.expectedArrival || null,
+            scheduledArrival: arrival.scheduledArrival || null,
+            vehicleId: arrival.vehicleId || null,
+            vehicleFleetNumber: arrival.fleetNumber || null,
+            tripId: arrival.id,
+            isScheduled: false, // TfL arrivals are live
+            live: true,
+            modeName: arrival.modeName || "bus"
+          }));
+          
+          setAllStopTrips(processedTrips);
+          return;
+        }
+      }
+      
+      // If TfL fails or returns no data, try bustimes.org as backup
+      console.log("TfL API returned no data, trying bustimes.org as backup...");
+      
+      // Get stop details from bustimes.org to get ATCO code
+      const bustimesStopResponse = await fetch(`https://api.tfl.gov.uk/StopPoint/${stop.id}/Arrivals`); 
+      
+      if (!bustimesStopResponse.ok) {
+        throw new Error('Failed to get stop details from bustimes.org');
+      }
+      
+      const bustimesStopData = await bustimesStopResponse.json();
+      const atcoCode = bustimesStopData.atco_code;
+      
+      if (!atcoCode) {
+        throw new Error('No ATCO code found for stop');
+      }
+      
+      // Fetch departures from bustimes.org
+      const bustimesDeparturesResponse = await fetch(
+        `https://bustimes.org/api/departures/?atco_code=${atcoCode}&limit=10`
+      );
+      
+      if (!bustimesDeparturesResponse.ok) {
+        throw new Error('Failed to get departures from bustimes.org');
+      }
+      
+      const bustimesDeparturesData = await bustimesDeparturesResponse.json();
+      
+      if (bustimesDeparturesData.results && bustimesDeparturesData.results.length > 0) {
+        const processedTrips = bustimesDeparturesData.results.map(departure => ({
+          lineId: departure.service?.line_name || "Unknown Line",
+          destinationName: departure.destination || "Unknown Destination",
+          expectedArrival: departure.departure_time ? new Date(departure.departure_time).toISOString() : null,
+          scheduledArrival: departure.aimed_departure_time ? 
+            `${new Date().toISOString().split("T")[0]}T${departure.aimed_departure_time}` : null,
+          vehicleId: departure.vehicle?.reg || null,
+          vehicleFleetNumber: departure.vehicle?.fleet_number || null,
+          tripId: departure.id,
+          isScheduled: !departure.live,
+          live: departure.live || false,
+          service: departure.service
+        }));
+        
+        setAllStopTrips(processedTrips);
+      } else {
+        setAllStopTrips([]);
+      }
+    } catch (err) {
+      console.error("Error fetching stop departures:", err);
+      setAllStopsError("Failed to load departure data for this stop.");
+      setAllStopTrips([]);
+    } finally {
+      setTripsLoading(false);
+    }
+  };
+
+  // Debounced search effect
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      if (showAllStopsSearch) {
+        searchAllStops(allStopsSearchQuery);
+      }
+    }, 300);
+    
+    return () => clearTimeout(handler);
+  }, [allStopsSearchQuery, showAllStopsSearch]);
 
   const scheduledArrivalsForStop = useMemo(() => {
     if (
@@ -268,6 +414,11 @@ const LiveBusView = ({
       stop.commonName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       stop.indicator?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Get favorite stops from nearestStops
+  const favoriteStops = useMemo(() => {
+    return nearestStops.filter(stop => favorites.has(stop.naptanId));
+  }, [nearestStops, favorites]);
 
   const formatScheduledTimeForDetail = (timeString) => {
     if (!timeString) return "N/A";
@@ -495,7 +646,7 @@ const LiveBusView = ({
 
   return (
     <div className="space-y-4">
-      {}
+      {/* Location Section */}
       <div className="bg-white rounded-xl shadow-lg p-4">
         <div className="flex items-center space-x-3">
           <Locate className="w-5 h-5 text-blue-600" />
@@ -523,7 +674,260 @@ const LiveBusView = ({
         </div>
       </div>
 
-      {}
+      {/* Favorites Section */}
+      {favoriteStops.length > 0 && (
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className="flex items-center space-x-2 mb-4">
+            <Heart className="w-5 h-5 text-red-500 fill-current" />
+            <h3 className="text-lg font-semibold text-gray-800">Favorites</h3>
+          </div>
+          
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {favoriteStops.map((stop) => (
+              <div
+                key={`fav-${stop.naptanId}`}
+                onClick={() => handleStopSelect(stop)}
+                className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${
+                  selectedStop?.naptanId === stop.naptanId
+                    ? "bg-blue-50 border-2 border-blue-200"
+                    : "hover:bg-gray-50 border-2 border-transparent"
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <MapPin className="w-5 h-5 text-red-500" />
+                  <div>
+                    <p className="font-medium text-gray-800">{stop.commonName}</p>
+                    <p className="text-sm text-gray-500">
+                      {stop.indicator && `${stop.indicator} • `}
+                      {stop.distance?.toFixed(0)}m away
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFavorite(stop.naptanId);
+                  }}
+                  className="p-1 hover:bg-gray-200 rounded-full"
+                >
+                  <Star
+                    className={`w-5 h-5 text-yellow-500 fill-current`}
+                  />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Search All Stops Section */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-800">Search All Stops</h3>
+          <button
+            onClick={() => setShowAllStopsSearch(!showAllStopsSearch)}
+            className="text-blue-600 hover:text-blue-800 font-medium"
+          >
+            {showAllStopsSearch ? "Hide" : "Show"}
+          </button>
+        </div>
+        
+        {showAllStopsSearch && (
+          <>
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Search all TfL stops..."
+                value={allStopsSearchQuery}
+                onChange={(e) => setAllStopsSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            
+            {allStopsLoading && (
+              <div className="text-center py-4">
+                <Loader className="w-6 h-6 animate-spin text-blue-600 mx-auto" />
+                <p className="text-gray-600 mt-2">Searching stops...</p>
+              </div>
+            )}
+            
+            {allStopsError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="w-4 h-4 text-red-500" />
+                  <p className="text-red-700 text-sm">{allStopsError}</p>
+                </div>
+              </div>
+            )}
+            
+            {allStopsResults.length > 0 && !allStopsLoading && (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {allStopsResults.slice(0, 10).map((stop) => (
+                  <div
+                    key={`all-${stop.id}`}
+                    onClick={() => fetchStopDepartures(stop)}
+                    className="flex items-center justify-between p-3 rounded-lg cursor-pointer hover:bg-gray-50 border-2 border-transparent"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <MapPin className="w-5 h-5 text-red-500" />
+                      <div>
+                        <p className="font-medium text-gray-800">{stop.name}</p>
+                        <p className="text-sm text-gray-500">
+                          {stop.indicator && `${stop.indicator} • `}
+                          {stop.modeName}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFavorite(stop.id);
+                      }}
+                      className="p-1 hover:bg-gray-200 rounded-full"
+                    >
+                      <Star
+                        className={`w-5 h-5 ${
+                          favorites.has(stop.id)
+                            ? "text-yellow-500 fill-current"
+                            : "text-gray-400"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {!allStopsLoading && allStopsResults.length === 0 && allStopsSearchQuery && (
+              <div className="text-center py-4 text-gray-500">
+                <WifiOff className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                <p>No stops found matching "{allStopsSearchQuery}"</p>
+              </div>
+            )}
+            
+            {/* Display trips for selected stop */}
+            {selectedAllStop && (
+              <div className="mt-6 bg-blue-50 border border-blue-100 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold text-gray-800">
+                    {selectedAllStop.name} Departures
+                  </h4>
+                  <button
+                    onClick={() => {
+                      setSelectedAllStop(null);
+                      setAllStopTrips([]);
+                    }}
+                    className="text-blue-600 hover:text-blue-800"
+                  >
+                    Close
+                  </button>
+                </div>
+                
+                {tripsLoading ? (
+                  <div className="text-center py-4">
+                    <Loader className="w-6 h-6 animate-spin text-blue-600 mx-auto" />
+                    <p className="text-gray-600 mt-2">Loading departures...</p>
+                  </div>
+                ) : allStopTrips.length > 0 ? (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {allStopTrips.map((trip, index) => {
+                      const serviceStatus = calculateServiceStatus(
+                        trip.expectedArrival,
+                        trip.scheduledArrival
+                      );
+                      
+                      const isLive = trip.live;
+                      const isScheduled = trip.isScheduled;
+
+                      return (
+                        <div
+                          key={`${trip.vehicleId || trip.tripId}-${index}`}
+                          onClick={() => handleArrivalClick(trip)}
+                          className={`flex items-start justify-between p-3 rounded-lg border cursor-pointer hover:opacity-90 transition-opacity ${
+                            isLive
+                              ? "bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100"
+                              : "bg-gradient-to-r from-green-50 to-emerald-50 border-green-100"
+                          }`}
+                        >
+                          <div className="flex items-start space-x-3">
+                            <div
+                              className={`w-10 h-10 ${
+                                isLive ? "bg-blue-600" : "bg-green-600"
+                              } text-white rounded-lg flex items-center justify-center font-bold text-sm`}
+                            >
+                              {trip.lineId?.toUpperCase()}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <p className="font-medium text-gray-800">
+                                  To {trip.destinationName}
+                                </p>
+                                <div className="flex items-center space-x-1">
+                                  <Clock className="w-3 h-3 text-gray-500" />
+                                  <span className="text-xs font-medium text-gray-700">
+                                    {formatArrivalTimeForList(
+                                      trip.expectedArrival,
+                                      trip.scheduledArrival
+                                    )}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {isLive && serviceStatus.status !== "On Time" && (
+                                <div className="flex items-center space-x-1 mt-1">
+                                  <AlertTriangle className="w-2 h-2" />
+                                  <span
+                                    className={`text-xs font-medium ${serviceStatus.color}`}
+                                  >
+                                    {serviceStatus.status}{" "}
+                                    {serviceStatus.minutes > 0 &&
+                                      `by ${serviceStatus.minutes} min`}
+                                  </span>
+                                </div>
+                              )}
+
+                              {isScheduled && (
+                                <div className="mt-1">
+                                  <span className="text-xs font-medium text-green-600 bg-green-100 px-1.5 py-0.5 rounded">
+                                    Scheduled
+                                  </span>
+                                </div>
+                              )}
+
+                              <div className="flex flex-wrap gap-1 mt-1 text-xs">
+                                {isLive && trip.vehicleId && (
+                                  <span className="px-1.5 py-0.5 bg-gray-100 text-gray-700 rounded">
+                                    Reg: {trip.vehicleId}
+                                  </span>
+                                )}
+                                {isLive && trip.vehicleFleetNumber && (
+                                  <span className="px-1.5 py-0.5 bg-gray-100 text-gray-700 rounded">
+                                    Fleet: {trip.vehicleFleetNumber}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <Navigation className="w-4 h-4 text-blue-600 transform rotate-45 mt-1" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-gray-500">
+                    <Info className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                    <p>No departures found for this stop.</p>
+                    <p className="text-xs mt-1">Try again in a few minutes.</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Nearby Stops Section */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -535,8 +939,6 @@ const LiveBusView = ({
             className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
-
-        {/* Detailed schedule preview removed (duplicate); detailed schedule is shown in the service details panel when a service is selected */}
 
         {loading && !liveArrivals.length && (
           <div className="text-center py-4">
@@ -602,7 +1004,7 @@ const LiveBusView = ({
         </div>
       </div>
 
-      {}
+      {/* Selected Stop Section */}
       {selectedStop && (
         <div className="bg-white rounded-xl shadow-lg p-6">
           <div className="flex items-center space-x-2 mb-4">
@@ -634,7 +1036,6 @@ const LiveBusView = ({
             </div>
           )}
 
-          {}
           <div className="flex items-center justify-end mb-4">
             <button
               onClick={toggleTimeFormat}
@@ -653,7 +1054,6 @@ const LiveBusView = ({
             </button>
           </div>
 
-          {}
           {loading && combinedArrivals.length === 0 && (
             <div className="text-center py-6">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
@@ -661,7 +1061,6 @@ const LiveBusView = ({
             </div>
           )}
 
-          {}
           {combinedArrivals.length === 0 && !loading && (
             <div className="text-center py-6 text-gray-500">
               <Bus className="w-12 h-12 mx-auto mb-3 text-gray-400" />
@@ -670,7 +1069,6 @@ const LiveBusView = ({
             </div>
           )}
 
-          {}
           <div className="space-y-3">
             {combinedArrivals.map((arrival, index) => {
               const serviceStatus = calculateServiceStatus(
@@ -707,7 +1105,6 @@ const LiveBusView = ({
                         <div className="flex items-center space-x-1">
                           <Clock className="w-4 h-4 text-gray-500" />
                           <span className="text-sm font-medium text-gray-700">
-                            {}
                             {formatArrivalTimeForList(
                               arrival.expectedArrival,
                               arrival.scheduledArrival
@@ -716,7 +1113,6 @@ const LiveBusView = ({
                         </div>
                       </div>
 
-                      {}
                       {isLive && serviceStatus.status !== "On Time" && (
                         <div className="flex items-center space-x-1 mt-1">
                           <AlertTriangle className="w-3 h-3" />
@@ -730,7 +1126,6 @@ const LiveBusView = ({
                         </div>
                       )}
 
-                      {}
                       {isScheduled && (
                         <div className="mt-1">
                           <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded">
@@ -739,7 +1134,6 @@ const LiveBusView = ({
                         </div>
                       )}
 
-                      {}
                       <div className="flex flex-wrap gap-2 mt-2 text-xs">
                         {isLive && arrival.vehicleId && (
                           <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-md">

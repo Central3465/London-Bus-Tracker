@@ -61,7 +61,6 @@ const App = () => {
   const tabs = [
     { id: "live", label: "Live Buses", icon: Bus },
     { id: "journey", label: "Journey Planner", icon: Navigation },
-    { id: "enthusiast", label: "Enthusiast Hub", icon: Star },
     { id: "vehicle", label: "Vehicle Tracker", icon: Navigation }, // Define the vehicle tab here
   ];
 
