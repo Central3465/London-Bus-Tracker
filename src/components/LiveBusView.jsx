@@ -49,7 +49,7 @@ const LiveBusView = ({
   const [vehicleJourneyData, setVehicleJourneyData] = useState(null);
   const [journeyDataLoading, setJourneyDataLoading] = useState(false);
   const [journeyDataSource, setJourneyDataSource] = useState("");
-  
+
   // New state for all stops search
   const [allStopsSearchQuery, setAllStopsSearchQuery] = useState("");
   const [allStopsResults, setAllStopsResults] = useState([]);
@@ -81,19 +81,19 @@ const LiveBusView = ({
       setAllStopsResults([]);
       return;
     }
-    
+
     setAllStopsLoading(true);
     setAllStopsError(null);
-    
+
     try {
       const res = await fetch(
         `https://api.tfl.gov.uk/StopPoint/Search/${encodeURIComponent(query)}`
       );
-      
+
       if (!res.ok) {
         throw new Error(`API error: ${res.status}`);
       }
-      
+
       const data = await res.json();
       setAllStopsResults(data.matches || []);
     } catch (err) {
@@ -105,92 +105,55 @@ const LiveBusView = ({
     }
   };
 
-  // Fetch departures from TfL API (primary) with bustimes.org as backup
   const fetchStopDepartures = async (stop) => {
     if (!stop || !stop.id) return;
-    
     setTripsLoading(true);
     setAllStopTrips([]);
     setSelectedAllStop(stop);
-    
+    setAllStopsError(null);
+
     try {
-      // First, try TfL API
+      // Only use TfL API — bustimes.org is not CORS-friendly in browser
       const tflResponse = await fetch(
         `https://api.tfl.gov.uk/StopPoint/${stop.id}/Arrivals`
       );
-      
-      if (tflResponse.ok) {
-        const tflData = await tflResponse.json();
-        
-        if (Array.isArray(tflData) && tflData.length > 0) {
-          const processedTrips = tflData.map(arrival => ({
-            lineId: arrival.lineId || arrival.lineName || "Unknown Line",
-            destinationName: arrival.destinationName || "Unknown Destination",
-            expectedArrival: arrival.expectedArrival || null,
-            scheduledArrival: arrival.scheduledArrival || null,
-            vehicleId: arrival.vehicleId || null,
-            vehicleFleetNumber: arrival.fleetNumber || null,
-            tripId: arrival.id,
-            isScheduled: false, // TfL arrivals are live
-            live: true,
-            modeName: arrival.modeName || "bus"
-          }));
-          
-          setAllStopTrips(processedTrips);
-          return;
-        }
+
+      if (!tflResponse.ok) {
+        throw new Error(`TfL API error: ${tflResponse.status}`);
       }
-      
-      // If TfL fails or returns no data, try bustimes.org as backup
-      console.log("TfL API returned no data, trying bustimes.org as backup...");
-      
-      // Get stop details from bustimes.org to get ATCO code
-      const bustimesStopResponse = await fetch(`https://api.tfl.gov.uk/StopPoint/${stop.id}/Arrivals`); 
-      
-      if (!bustimesStopResponse.ok) {
-        throw new Error('Failed to get stop details from bustimes.org');
-      }
-      
-      const bustimesStopData = await bustimesStopResponse.json();
-      const atcoCode = bustimesStopData.atco_code;
-      
-      if (!atcoCode) {
-        throw new Error('No ATCO code found for stop');
-      }
-      
-      // Fetch departures from bustimes.org
-      const bustimesDeparturesResponse = await fetch(
-        `https://bustimes.org/api/departures/?atco_code=${atcoCode}&limit=10`
-      );
-      
-      if (!bustimesDeparturesResponse.ok) {
-        throw new Error('Failed to get departures from bustimes.org');
-      }
-      
-      const bustimesDeparturesData = await bustimesDeparturesResponse.json();
-      
-      if (bustimesDeparturesData.results && bustimesDeparturesData.results.length > 0) {
-        const processedTrips = bustimesDeparturesData.results.map(departure => ({
-          lineId: departure.service?.line_name || "Unknown Line",
-          destinationName: departure.destination || "Unknown Destination",
-          expectedArrival: departure.departure_time ? new Date(departure.departure_time).toISOString() : null,
-          scheduledArrival: departure.aimed_departure_time ? 
-            `${new Date().toISOString().split("T")[0]}T${departure.aimed_departure_time}` : null,
-          vehicleId: departure.vehicle?.reg || null,
-          vehicleFleetNumber: departure.vehicle?.fleet_number || null,
-          tripId: departure.id,
-          isScheduled: !departure.live,
-          live: departure.live || false,
-          service: departure.service
+
+      const tflData = await tflResponse.json();
+
+      if (Array.isArray(tflData)) {
+        const processedTrips = tflData.map((arrival) => ({
+          lineId: arrival.lineId || arrival.lineName || "Unknown Line",
+          destinationName: arrival.destinationName || "Unknown Destination",
+          expectedArrival: arrival.expectedArrival || null,
+          scheduledArrival: arrival.scheduledArrival || null,
+          vehicleId: arrival.vehicleId || null,
+          vehicleFleetNumber: arrival.fleetNumber || null,
+          tripId: arrival.id,
+          isScheduled: false,
+          live: true,
+          modeName: arrival.modeName || "bus",
         }));
-        
+
+        // Sort by expected arrival time
+        processedTrips.sort((a, b) => {
+          const timeA = new Date(a.expectedArrival || a.scheduledArrival);
+          const timeB = new Date(b.expectedArrival || b.scheduledArrival);
+          return timeA - timeB;
+        });
+
         setAllStopTrips(processedTrips);
       } else {
         setAllStopTrips([]);
       }
     } catch (err) {
-      console.error("Error fetching stop departures:", err);
-      setAllStopsError("Failed to load departure data for this stop.");
+      console.error("Error fetching TfL arrivals:", err);
+      setAllStopsError(
+        "Failed to load live bus data. TfL API may be down or the stop has no live services."
+      );
       setAllStopTrips([]);
     } finally {
       setTripsLoading(false);
@@ -204,7 +167,7 @@ const LiveBusView = ({
         searchAllStops(allStopsSearchQuery);
       }
     }, 300);
-    
+
     return () => clearTimeout(handler);
   }, [allStopsSearchQuery, showAllStopsSearch]);
 
@@ -417,7 +380,7 @@ const LiveBusView = ({
 
   // Get favorite stops from nearestStops
   const favoriteStops = useMemo(() => {
-    return nearestStops.filter(stop => favorites.has(stop.naptanId));
+    return nearestStops.filter((stop) => favorites.has(stop.naptanId));
   }, [nearestStops, favorites]);
 
   const formatScheduledTimeForDetail = (timeString) => {
@@ -681,7 +644,7 @@ const LiveBusView = ({
             <Heart className="w-5 h-5 text-red-500 fill-current" />
             <h3 className="text-lg font-semibold text-gray-800">Favorites</h3>
           </div>
-          
+
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {favoriteStops.map((stop) => (
               <div
@@ -696,7 +659,9 @@ const LiveBusView = ({
                 <div className="flex items-center space-x-3">
                   <MapPin className="w-5 h-5 text-red-500" />
                   <div>
-                    <p className="font-medium text-gray-800">{stop.commonName}</p>
+                    <p className="font-medium text-gray-800">
+                      {stop.commonName}
+                    </p>
                     <p className="text-sm text-gray-500">
                       {stop.indicator && `${stop.indicator} • `}
                       {stop.distance?.toFixed(0)}m away
@@ -710,9 +675,7 @@ const LiveBusView = ({
                   }}
                   className="p-1 hover:bg-gray-200 rounded-full"
                 >
-                  <Star
-                    className={`w-5 h-5 text-yellow-500 fill-current`}
-                  />
+                  <Star className={`w-5 h-5 text-yellow-500 fill-current`} />
                 </button>
               </div>
             ))}
@@ -723,7 +686,9 @@ const LiveBusView = ({
       {/* Search All Stops Section */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-800">Search All Stops</h3>
+          <h3 className="text-lg font-semibold text-gray-800">
+            Search All Stops
+          </h3>
           <button
             onClick={() => setShowAllStopsSearch(!showAllStopsSearch)}
             className="text-blue-600 hover:text-blue-800 font-medium"
@@ -731,7 +696,7 @@ const LiveBusView = ({
             {showAllStopsSearch ? "Hide" : "Show"}
           </button>
         </div>
-        
+
         {showAllStopsSearch && (
           <>
             <div className="relative mb-4">
@@ -744,14 +709,14 @@ const LiveBusView = ({
                 className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-            
+
             {allStopsLoading && (
               <div className="text-center py-4">
                 <Loader className="w-6 h-6 animate-spin text-blue-600 mx-auto" />
                 <p className="text-gray-600 mt-2">Searching stops...</p>
               </div>
             )}
-            
+
             {allStopsError && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
                 <div className="flex items-center space-x-2">
@@ -760,7 +725,7 @@ const LiveBusView = ({
                 </div>
               </div>
             )}
-            
+
             {allStopsResults.length > 0 && !allStopsLoading && (
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {allStopsResults.slice(0, 10).map((stop) => (
@@ -798,14 +763,16 @@ const LiveBusView = ({
                 ))}
               </div>
             )}
-            
-            {!allStopsLoading && allStopsResults.length === 0 && allStopsSearchQuery && (
-              <div className="text-center py-4 text-gray-500">
-                <WifiOff className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                <p>No stops found matching "{allStopsSearchQuery}"</p>
-              </div>
-            )}
-            
+
+            {!allStopsLoading &&
+              allStopsResults.length === 0 &&
+              allStopsSearchQuery && (
+                <div className="text-center py-4 text-gray-500">
+                  <WifiOff className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                  <p>No stops found matching "{allStopsSearchQuery}"</p>
+                </div>
+              )}
+
             {/* Display trips for selected stop */}
             {selectedAllStop && (
               <div className="mt-6 bg-blue-50 border border-blue-100 rounded-lg p-4">
@@ -823,7 +790,7 @@ const LiveBusView = ({
                     Close
                   </button>
                 </div>
-                
+
                 {tripsLoading ? (
                   <div className="text-center py-4">
                     <Loader className="w-6 h-6 animate-spin text-blue-600 mx-auto" />
@@ -836,7 +803,7 @@ const LiveBusView = ({
                         trip.expectedArrival,
                         trip.scheduledArrival
                       );
-                      
+
                       const isLive = trip.live;
                       const isScheduled = trip.isScheduled;
 
