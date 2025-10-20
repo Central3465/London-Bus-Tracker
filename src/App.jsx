@@ -15,6 +15,7 @@ import {
   WifiOff,
   AlertCircle,
   X,
+  Menu
 } from "lucide-react";
 import BusMap from "./BusMap";
 import LiveBusView from "./components/LiveBusView";
@@ -22,6 +23,8 @@ import JourneyPlanner from "./components/JourneyPlanner";
 import EnthusiastHub from "./components/EnthusisatHub";
 import VehicleTrackerView from "./components/VehicleTrackerView";
 import BusMapComponent from "./components/BusMapComponent";
+import ServiceDisruptionsTab from "./components/ServiceDisruptions";
+import PremiumPage from "./components/PremiumPage";
 import {
   fetchNearestStops,
   fetchLiveArrivals,
@@ -68,6 +71,8 @@ const App = () => {
     { id: "live", label: "Live Buses", icon: Bus },
     { id: "journey", label: "Journey Planner", icon: Navigation },
     { id: "vehicle", label: "Vehicle Tracker", icon: Navigation },
+    { id: "disruptions", label: "Service Disruptions", icon: AlertTriangle },
+    { id: "plus", label: "LBT Plus", icon: Star }
   ];
 
   const searchTimeoutRef = useRef(null);
@@ -417,7 +422,7 @@ const App = () => {
               aria-label="Toggle navigation menu"
             >
               {isMobileMenuOpen ? (
-                <AlertCircle className="w-6 h-6 text-gray-600" />
+                <X className="w-6 h-6 text-gray-600" />
               ) : (
                 <>
                   <div className="w-6 h-0.5 bg-gray-600 mb-1.5"></div>
@@ -523,6 +528,8 @@ const App = () => {
               BusMapComponent={BusMapComponent}
             />
           )}
+          {activeTab === "disruptions" && <ServiceDisruptionsTab />}
+          {activeTab === "plus" && <PremiumPage />}
         </div>
       </div>
     </div>
