@@ -384,6 +384,11 @@ const App = () => {
       )}
 
       <header className="bg-white shadow-sm border-b border-gray-100">
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2049627200338766"
+          crossorigin="anonymous"
+        ></script>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
