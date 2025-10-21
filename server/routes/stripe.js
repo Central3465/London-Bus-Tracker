@@ -42,8 +42,8 @@ router.post("/create-checkout-session", async (req, res) => {
       customer_email: email,
       line_items: [{ price: priceId, quantity: 1 }],
       mode: "subscription",
-      success_url: "http://localhost:5173/success",
-      cancel_url: "http://localhost:5173/premium",
+      success_url: `${process.env.CLIENT_URL}/success`,
+      cancel_url: `${process.env.CLIENT_URL}/cancel`,
       metadata: {
         plan: plan, // 👈 "Monthly" or "Yearly"
         email: email,
@@ -55,45 +55,6 @@ router.post("/create-checkout-session", async (req, res) => {
     res.status(500).json({ error: err.message }); // ✅ use 'err'
   }
 });
-
-if (event.type === "checkout.session.completed") {
-  const session = event.data.object;
-
-  const customerEmail = session.customer_details.email;
-  const subscriptionId = session.subscription;
-  const plan = session.metadata.plan; // 👈 Now we get the real plan!
-
-  // Map frontend plan names to days
-  const days = {
-    Monthly: 30,
-    Yearly: 365,
-  }[plan];
-
-  if (days == null) {
-    console.error("Unknown plan in webhook:", plan);
-    return res.json({ received: true }); // still acknowledge
-  }
-
-  const expiresAt = new Date(
-    Date.now() + days * 24 * 60 * 60 * 1000
-  ).toISOString();
-  const userId = customerEmail.split("@")[0];
-
-  const db = await getDB();
-  db.users[userId] = {
-    email: customerEmail,
-    subscription: {
-      isActive: true,
-      plan, // e.g., "Monthly"
-      daysRemaining: days,
-      expiresAt,
-      stripeSubscriptionId: subscriptionId,
-    },
-  };
-
-  await saveDB(db);
-  console.log(`✅ Subscription activated for ${customerEmail} (${plan})`);
-}
 
 // GET user subscription by email (for frontend to check status)
 router.get("/user/:email", async (req, res) => {
@@ -148,13 +109,11 @@ router.post(
       const subscriptionId = session.subscription;
 
       // In real app, fetch plan details from Stripe
-      const plan = "1 Month"; // ← Simplified; use metadata or lookup from Stripe
+      const plan = session.metadata.plan; // "Monthly" or "Yearly"
 
       const days = {
-        "1 Month": 30,
-        "3 Months": 90,
-        "6 Months": 180,
-        "1 Year": 365,
+        Monthly: 30,
+        Yearly: 365,
       }[plan];
 
       const expiresAt = new Date(

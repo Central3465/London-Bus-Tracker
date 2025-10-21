@@ -9,9 +9,11 @@ import {
   Lock,
 } from "lucide-react";
 import { useUser } from "../contexts/UserContexts";
+import { useNavigate } from 'react-router-dom';
 
 const SettingsPage = ({ currentTheme, onThemeChange, setActiveTab }) => {
   const [selectedTheme, setSelectedTheme] = useState(currentTheme);
+  const navigate = useNavigate();
   const { subscription } = useUser();
   const hasPlus = subscription?.isActive;
 
@@ -241,7 +243,7 @@ const SettingsPage = ({ currentTheme, onThemeChange, setActiveTab }) => {
               </p>
               <button
                 onClick={() => {
-                  setActiveTab("plus");
+                  navigate('/plus');
                 }}
                 className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
               >

@@ -11,7 +11,9 @@ import {
   CreditCard,
   Calendar,
   CheckCircle,
-  Mail
+  Mail,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { useUser } from "../contexts/UserContexts";
 
@@ -105,6 +107,10 @@ const PremiumPage = () => {
     }
   };
 
+  // ✅ Check if subscription is active AND has days remaining
+  const hasActiveSubscription =
+    subscription?.isActive && (subscription.daysRemaining || 0) > 0;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto">
@@ -117,26 +123,39 @@ const PremiumPage = () => {
             London Bus Tracker <span className="text-indigo-600">Plus</span>
           </h1>
           <p className="mt-3 text-lg text-gray-600 max-w-2xl mx-auto">
-            Unlock powerful features to make your commute smarter, smoother, and
-            stress-free.
+            {hasActiveSubscription
+              ? "Your premium features are unlocked!"
+              : "Unlock powerful features to make your commute smarter, smoother, and stress-free."}
           </p>
         </div>
 
-        {/* Subscription Status */}
-        {subscription?.isActive && (
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-10 max-w-md mx-auto text-center">
-            <div className="flex items-center justify-center space-x-2 text-green-700 font-medium">
-              <CheckCircle className="w-5 h-5" />
-              <span>LBT Plus Active</span>
+        {/* ✅ Subscription Status Banner — Always shown if active */}
+        {hasActiveSubscription && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-5 mb-10 max-w-2xl mx-auto text-center animate-in fade-in duration-300">
+            <div className="flex flex-col items-center justify-center space-y-2">
+              <div className="flex items-center space-x-2 text-green-700 font-semibold text-lg">
+                <CheckCircle className="w-6 h-6" />
+                <span>LBT Plus Active</span>
+              </div>
+              <p className="text-green-600 flex items-center space-x-1">
+                <Calendar className="w-4 h-4" />
+                <span>
+                  {subscription.daysRemaining} day
+                  {subscription.daysRemaining !== 1 ? "s" : ""} remaining
+                </span>
+              </p>
+              <button
+                onClick={() => updateSubscription && updateSubscription()}
+                className="mt-2 inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+              >
+                <RefreshCw className="w-3.5 h-3.5 mr-1" />
+                Refresh status
+              </button>
             </div>
-            <p className="mt-1 text-green-600">
-              <Calendar className="w-4 h-4 inline mr-1" />
-              {subscription.daysRemaining} days remaining
-            </p>
           </div>
         )}
 
-        {/* Features */}
+        {/* Features — Always shown */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
           {premiumFeatures.map((feature, index) => (
             <div
@@ -160,97 +179,106 @@ const PremiumPage = () => {
           ))}
         </div>
 
-        {/* Pricing & Email Form */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 mb-8">
-          <h2 className="text-xl font-bold text-gray-900 text-center mb-6">
-            Choose Your Subscription
-          </h2>
+        {/* ✅ Conditional Rendering: Show purchase UI ONLY if no active subscription */}
+        {!hasActiveSubscription ? (
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 mb-8">
+            <h2 className="text-xl font-bold text-gray-900 text-center mb-6">
+              Choose Your Subscription
+            </h2>
 
-          <div className="flex justify-center space-x-4 mb-6">
-            {pricingPlans.map((plan) => (
-              <button
-                key={plan.label}
-                className={`px-6 py-2 rounded-lg font-medium transition-all ${
-                  selectedTier?.label === plan.label
-                    ? "bg-indigo-600 text-white shadow-md"
-                    : "bg-gray-100 text-gray-700 hover:bg-indigo-50"
-                }`}
-                onClick={() => {
-                  setSelectedTier(plan);
-                  setEmail("");
-                  setError("");
-                }}
-              >
-                {plan.label}
-              </button>
-            ))}
-          </div>
-
-          {selectedTier ? (
-            <div className="space-y-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-indigo-600">
-                  {selectedTier.price}
-                </p>
-              </div>
-
-              {/* Email Input */}
-              <div className="max-w-md mx-auto space-y-2">
-                <label
-                  htmlFor="email"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  Email address
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    type="email"
-                    id="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="you@example.com"
-                  />
-                </div>
-              </div>
-
-              {/* Error Message */}
-              {error && (
-                <div className="max-w-md mx-auto flex items-center text-red-600 text-sm">
-                  <AlertCircle className="w-4 h-4 mr-1" />
-                  {error}
-                </div>
-              )}
-
-              {/* Subscribe Button */}
-              <div className="text-center">
+            <div className="flex justify-center space-x-4 mb-6">
+              {pricingPlans.map((plan) => (
                 <button
-                  onClick={handlePurchase}
-                  disabled={isSubmitting}
-                  className={`mt-2 px-6 py-2 rounded-lg font-medium transition-colors ${
-                    isSubmitting
-                      ? "bg-indigo-400 cursor-not-allowed"
-                      : "bg-indigo-600 hover:bg-indigo-700"
-                  } text-white`}
+                  key={plan.label}
+                  className={`px-6 py-2 rounded-lg font-medium transition-all ${
+                    selectedTier?.label === plan.label
+                      ? "bg-indigo-600 text-white shadow-md"
+                      : "bg-gray-100 text-gray-700 hover:bg-indigo-50"
+                  }`}
+                  onClick={() => {
+                    setSelectedTier(plan);
+                    setEmail("");
+                    setError("");
+                  }}
                 >
-                  {isSubmitting ? "Redirecting..." : "Subscribe Now"}
+                  {plan.label}
                 </button>
-              </div>
+              ))}
             </div>
-          ) : (
-            <p className="text-center text-gray-500">
-              Select a plan to continue
-            </p>
-          )}
 
-          <p className="text-center text-xs text-gray-500 mt-6">
-            Subscriptions renew automatically unless cancelled. Manage or cancel
-            anytime in your account settings.
-          </p>
-        </div>
+            {selectedTier ? (
+              <div className="space-y-4">
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-indigo-600">
+                    {selectedTier.price}
+                  </p>
+                </div>
+
+                {/* Email Input */}
+                <div className="max-w-md mx-auto space-y-2">
+                  <label
+                    htmlFor="email"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Email address
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Mail className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="email"
+                      id="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="you@example.com"
+                    />
+                  </div>
+                </div>
+
+                {/* Error Message */}
+                {error && (
+                  <div className="max-w-md mx-auto flex items-center text-red-600 text-sm">
+                    <AlertCircle className="w-4 h-4 mr-1" />
+                    {error}
+                  </div>
+                )}
+
+                {/* Subscribe Button */}
+                <div className="text-center">
+                  <button
+                    onClick={handlePurchase}
+                    disabled={isSubmitting}
+                    className={`mt-2 px-6 py-2 rounded-lg font-medium transition-colors ${
+                      isSubmitting
+                        ? "bg-indigo-400 cursor-not-allowed"
+                        : "bg-indigo-600 hover:bg-indigo-700"
+                    } text-white`}
+                  >
+                    {isSubmitting ? "Redirecting..." : "Subscribe Now"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-center text-gray-500">
+                Select a plan to continue
+              </p>
+            )}
+
+            <p className="text-center text-xs text-gray-500 mt-6">
+              Subscriptions renew automatically unless cancelled. Manage or cancel
+              anytime in your account settings.
+            </p>
+          </div>
+        ) : (
+          // ✅ Optional: Show a "Thank You" message when subscribed
+          <div className="text-center mb-8">
+            <p className="text-gray-600">
+              Thank you for supporting London Bus Tracker! 🚌✨
+            </p>
+          </div>
+        )}
 
         <div className="text-center text-sm text-gray-500">
           <p>

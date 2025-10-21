@@ -26,6 +26,9 @@ import BusMapComponent from "./components/BusMapComponent";
 import ServiceDisruptionsTab from "./components/ServiceDisruptions";
 import PremiumPage from "./components/PremiumPage";
 import SettingsPage from "./components/Settings";
+import NotFoundPage from "./components/NotFoundPage";
+import SuccessPage from "./components/SuccessPage";
+import CancelPage from "./components/CancelPage";
 import { useUser } from "./contexts/UserContexts";
 
 import {
@@ -36,13 +39,21 @@ import {
   fetchScheduledDepartures,
 } from "./utils/api";
 
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Link,
+  useNavigate,
+} from "react-router-dom";
+
 const TFL_APP_ID = import.meta.env.VITE_TFL_APP_ID;
 const TFL_APP_KEY = import.meta.env.VITE_TFL_APP_KEY;
 const TFL_API_BASE = "https://api.tfl.gov.uk";
 
 const App = () => {
-  const [activeTab, setActiveTab] = useState("live");
   const [vehicleIdInput, setVehicleIdInput] = useState("");
+  const navigate = useNavigate();
   const [userLocation, setUserLocation] = useState(null);
   const [adblockDetected, setAdblockDetected] = useState(false);
   const [adblockModalStep, setAdblockModalStep] = useState("initial"); // 'initial' | 'instructions'
@@ -74,12 +85,32 @@ const App = () => {
   const [toSuggestions, setToSuggestions] = useState([]);
 
   const tabs = [
-    { id: "live", label: "Live Buses", icon: Bus },
-    { id: "journey", label: "Journey Planner", icon: Navigation },
-    { id: "vehicle", label: "Vehicle Tracker", icon: Navigation },
-    { id: "disruptions", label: "Service Disruptions", icon: AlertTriangle },
-    { id: "settings", label: "Settings", icon: SettingsIcon }, // Added Settings tab
-    { id: "plus", label: "LBT Plus", icon: Star },
+    { id: "live", label: "Live Buses", icon: Bus, path: "/live" },
+    {
+      id: "journey",
+      label: "Journey Planner",
+      icon: Navigation,
+      path: "/journey",
+    },
+    {
+      id: "vehicle",
+      label: "Vehicle Tracker",
+      icon: Navigation,
+      path: "/vehicle",
+    },
+    {
+      id: "disruptions",
+      label: "Service Disruptions",
+      icon: AlertTriangle,
+      path: "/disruptions",
+    },
+    {
+      id: "settings",
+      label: "Settings",
+      icon: SettingsIcon,
+      path: "/settings",
+    },
+    { id: "plus", label: "LBT Plus", icon: Star, path: "/plus" },
   ];
 
   const searchTimeoutRef = useRef(null);
@@ -623,16 +654,17 @@ const App = () => {
               </div>
             </div>
 
+            {/* --- REPLACE YOUR EXISTING TAB BAR WITH THIS --- */}
             <div className="hidden md:flex space-x-1 bg-white/10 p-1 rounded-xl backdrop-blur-sm">
               {tabs.map((tab) => (
-                <button
+                <Link
                   key={tab.id}
-                  onClick={() => {
-                    setActiveTab(tab.id);
-                    setIsMobileMenuOpen(false);
-                  }}
+                  to={tab.path}
                   className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${
-                    activeTab === tab.id
+                    // We can use `location.pathname === tab.path` to determine active state
+                    // But for simplicity, we'll just use a class based on the current route.
+                    // You might want to create a custom hook or component for this.
+                    window.location.pathname === tab.path
                       ? "bg-blue-600 text-white shadow-md"
                       : `${getTextColor(
                           "text-gray-600"
@@ -641,10 +673,11 @@ const App = () => {
                 >
                   <tab.icon className="w-4 h-4" />
                   <span>{tab.label}</span>
-                </button>
+                </Link>
               ))}
             </div>
 
+            {/* ... mobile menu button remains the same */}
             <button
               className="md:hidden flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100/50 focus:outline-none"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -661,6 +694,7 @@ const App = () => {
               )}
             </button>
 
+            {/* ... live data status remains the same */}
             <div className="hidden md:block">
               <span className="text-sm text-green-600 font-medium flex items-center">
                 <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
@@ -669,18 +703,17 @@ const App = () => {
             </div>
           </div>
 
+          {/* --- UPDATE MOBILE MENU TO USE LINKS INSTEAD OF BUTTONS --- */}
           {isMobileMenuOpen && (
             <div className="md:hidden mt-2 pb-4 border-t border-gray-100">
               <div className="flex flex-col space-y-2 pt-2">
                 {tabs.map((tab) => (
-                  <button
+                  <Link
                     key={tab.id}
-                    onClick={() => {
-                      setActiveTab(tab.id);
-                      setIsMobileMenuOpen(false);
-                    }}
+                    to={tab.path}
+                    onClick={() => setIsMobileMenuOpen(false)} // Close menu on click
                     className={`flex items-center space-x-3 px-4 py-3 rounded-lg font-medium ${
-                      activeTab === tab.id
+                      window.location.pathname === tab.path
                         ? "bg-blue-600 text-white"
                         : `${getTextColor(
                             "text-gray-700"
@@ -689,7 +722,7 @@ const App = () => {
                   >
                     <tab.icon className="w-5 h-5" />
                     <span>{tab.label}</span>
-                  </button>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -699,81 +732,146 @@ const App = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="max-w-4xl mx-auto">
-          {activeTab === "live" && (
-            <LiveBusView
-              selectedStop={selectedStop}
-              liveArrivals={liveArrivals}
-              scheduledDepartures={scheduledDepartures}
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              refreshData={refreshData}
-              isRefreshing={isRefreshing}
-              loading={loading}
-              nearestStops={nearestStops}
-              error={error}
-              locationError={locationError}
-              userLocation={userLocation}
-              getCurrentLocation={getCurrentLocation}
-              handleStopSelect={handleStopSelect}
-              showMap={showMap}
-              setShowMap={setShowMap}
-              calculateServiceStatus={calculateServiceStatus}
-              formatArrivalTime={formatArrivalTime}
-              favorites={favorites}
-              toggleFavorite={toggleFavorite}
-              fetchVehicleJourney={fetchVehicleJourney}
-              theme={theme}
-              getInputTextColor={getInputTextColor}
-              getInputBgAndBorder={getInputBgAndBorder}
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <LiveBusView
+                  selectedStop={selectedStop}
+                  liveArrivals={liveArrivals}
+                  scheduledDepartures={scheduledDepartures}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  refreshData={refreshData}
+                  isRefreshing={isRefreshing}
+                  loading={loading}
+                  nearestStops={nearestStops}
+                  error={error}
+                  locationError={locationError}
+                  userLocation={userLocation}
+                  getCurrentLocation={getCurrentLocation}
+                  handleStopSelect={handleStopSelect}
+                  showMap={showMap}
+                  setShowMap={setShowMap}
+                  calculateServiceStatus={calculateServiceStatus}
+                  formatArrivalTime={formatArrivalTime}
+                  favorites={favorites}
+                  toggleFavorite={toggleFavorite}
+                  fetchVehicleJourney={fetchVehicleJourney}
+                  theme={theme}
+                  getInputTextColor={getInputTextColor}
+                  getInputBgAndBorder={getInputBgAndBorder}
+                />
+              }
             />
-          )}
-          {activeTab === "journey" && (
-            <JourneyPlanner
-              userLocation={userLocation}
-              journeyFrom={journeyFrom}
-              setJourneyFrom={setJourneyFrom}
-              journeyTo={journeyTo}
-              setJourneyTo={setJourneyTo}
-              journeyResults={journeyResults}
-              setJourneyResults={setJourneyResults}
-              journeyLoading={journeyLoading}
-              setJourneyLoading={setJourneyLoading}
-              journeyError={journeyError}
-              setJourneyError={setJourneyError}
-              fromSuggestions={fromSuggestions}
-              setFromSuggestions={setFromSuggestions}
-              toSuggestions={toSuggestions}
-              setToSuggestions={setToSuggestions}
-              handleAutocomplete={handleAutocomplete}
-              handlePlanJourney={handlePlanJourney}
-              theme={theme}
-              getInputTextColor={getInputTextColor}
-              getInputBgAndBorder={getInputBgAndBorder}
+
+            <Route
+              path="/live"
+              element={
+                <LiveBusView
+                  selectedStop={selectedStop}
+                  liveArrivals={liveArrivals}
+                  scheduledDepartures={scheduledDepartures}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  refreshData={refreshData}
+                  isRefreshing={isRefreshing}
+                  loading={loading}
+                  nearestStops={nearestStops}
+                  error={error}
+                  locationError={locationError}
+                  userLocation={userLocation}
+                  getCurrentLocation={getCurrentLocation}
+                  handleStopSelect={handleStopSelect}
+                  showMap={showMap}
+                  setShowMap={setShowMap}
+                  calculateServiceStatus={calculateServiceStatus}
+                  formatArrivalTime={formatArrivalTime}
+                  favorites={favorites}
+                  toggleFavorite={toggleFavorite}
+                  fetchVehicleJourney={fetchVehicleJourney}
+                  theme={theme}
+                  getInputTextColor={getInputTextColor}
+                  getInputBgAndBorder={getInputBgAndBorder}
+                />
+              }
             />
-          )}
-          {activeTab === "enthusiast" && (
-            <EnthusiastHub favorites={favorites} nearestStops={nearestStops} />
-          )}
-          {activeTab === "vehicle" && (
-            <VehicleTrackerView
-              vehicleIdInput={vehicleIdInput}
-              setVehicleIdInput={setVehicleIdInput}
-              fetchVehicleDetails={fetchVehicleDetails}
-              BusMapComponent={BusMapComponent}
-              theme={theme}
-              getInputTextColor={getInputTextColor}
-              getInputBgAndBorder={getInputBgAndBorder}
+
+            <Route
+              path="/journey"
+              element={
+                <JourneyPlanner
+                  userLocation={userLocation}
+                  journeyFrom={journeyFrom}
+                  setJourneyFrom={setJourneyFrom}
+                  journeyTo={journeyTo}
+                  setJourneyTo={setJourneyTo}
+                  journeyResults={journeyResults}
+                  setJourneyResults={setJourneyResults}
+                  journeyLoading={journeyLoading}
+                  setJourneyLoading={setJourneyLoading}
+                  journeyError={journeyError}
+                  setJourneyError={setJourneyError}
+                  fromSuggestions={fromSuggestions}
+                  setFromSuggestions={setFromSuggestions}
+                  toSuggestions={toSuggestions}
+                  setToSuggestions={setToSuggestions}
+                  handleAutocomplete={handleAutocomplete}
+                  handlePlanJourney={handlePlanJourney}
+                  theme={theme}
+                  getInputTextColor={getInputTextColor}
+                  getInputBgAndBorder={getInputBgAndBorder}
+                />
+              }
             />
-          )}
-          {activeTab === "disruptions" && <ServiceDisruptionsTab />}
-          {activeTab === "plus" && <PremiumPage />}
-          {activeTab === "settings" && (
-            <SettingsPage
-              currentTheme={theme}
-              onThemeChange={setTheme}
-              setActiveTab={setActiveTab} // 👈 passing the function down
+
+            <Route
+              path="/enthusiast"
+              element={
+                <EnthusiastHub
+                  favorites={favorites}
+                  nearestStops={nearestStops}
+                />
+              }
             />
-          )}
+
+            <Route
+              path="/vehicle"
+              element={
+                <VehicleTrackerView
+                  vehicleIdInput={vehicleIdInput}
+                  setVehicleIdInput={setVehicleIdInput}
+                  fetchVehicleDetails={fetchVehicleDetails}
+                  BusMapComponent={BusMapComponent}
+                  theme={theme}
+                  getInputTextColor={getInputTextColor}
+                  getInputBgAndBorder={getInputBgAndBorder}
+                />
+              }
+            />
+
+            <Route path="/disruptions" element={<ServiceDisruptionsTab />} />
+
+            <Route path="/plus" element={<PremiumPage />} />
+
+            <Route
+              path="/settings"
+              element={
+                <SettingsPage
+                  currentTheme={theme}
+                  onThemeChange={setTheme}
+                  // Remove the setActiveTab prop since we're using routing now.
+                  // If you need to redirect after changing settings, use `navigate('/some-path')`
+                />
+              }
+            />
+
+            <Route path="/success" element={<SuccessPage />} />
+            <Route path="/cancel" element={<CancelPage />} />
+
+            {/* Optional: Add a catch-all route for 404 */}
+            <Route path="*" element={<NotFoundPage></NotFoundPage>} />
+          </Routes>
         </div>
       </div>
       {/* Adblock detection placeholder - invisible */}
@@ -791,4 +889,11 @@ const App = () => {
   );
 };
 
-export default App;
+const AppWithRouter = () => {
+  return (
+    <Router>
+      <App />
+    </Router>
+  );
+};
+export default AppWithRouter;
