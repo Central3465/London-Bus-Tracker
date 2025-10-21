@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo} from "react";
 import {
   Bus,
   Navigation,
@@ -38,15 +38,16 @@ const VehicleTrackerView = ({
     : [];
 
   // Extract stops with coordinates for the map
-  const stopLocations = Array.isArray(vehicleData)
-    ? vehicleData
-        .filter((s) => s.stopPoint && s.stopPoint.lat && s.stopPoint.lon)
-        .map((s) => ({
-          lat: s.stopPoint.lat,
-          lng: s.stopPoint.lon,
-          stopName: s.stopPoint.commonName || s.stopPoint.name || s.naptanId,
-        }))
-    : [];
+  const stopLocations = useMemo(() => {
+    if (!Array.isArray(vehicleData)) return [];
+    return vehicleData
+      .filter((s) => s.stopPoint?.lat && s.stopPoint?.lon)
+      .map((s) => ({
+        lat: s.stopPoint.lat,
+        lng: s.stopPoint.lon,
+        stopName: s.stopPoint.commonName || s.stopPoint.name || s.naptanId,
+      }));
+  }, [vehicleData]);
 
   // Function to get the location of the NEXT STOP for the vehicle
   const getNextStopLocation = () => {
@@ -78,7 +79,14 @@ const VehicleTrackerView = ({
     return null;
   };
 
-  const vehicleLocation = getNextStopLocation();
+  const vehicleLocation = useMemo(() => {
+    if (!Array.isArray(vehicleData) || vehicleData.length === 0) return null;
+    const next = vehicleData[0];
+    if (next?.stopPoint?.lat && next?.stopPoint?.lon) {
+      return { lat: next.stopPoint.lat, lng: next.stopPoint.lon };
+    }
+    return null;
+  }, [vehicleData]);
 
   // Function to format time based on the selected format
   const formatTime = (isoString) => {
@@ -115,23 +123,25 @@ const VehicleTrackerView = ({
   // Fetch bus details from bustimes.org API
   const fetchBusDetails = async (vehicleId) => {
     setLoadingDetails(true);
-    
+
     try {
       // First, search for the vehicle by registration
       const response = await fetch(
-        `https://bustimes.org/api/vehicles/?reg=${encodeURIComponent(vehicleId)}`
+        `https://bustimes.org/api/vehicles/?reg=${encodeURIComponent(
+          vehicleId
+        )}`
       );
-      
+
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
+
       if (data.results && data.results.length > 0) {
         const vehicle = data.results[0];
         const vehicleType = vehicle.vehicle_type;
-        
+
         // Calculate age from fleet code year if available
         let age = "N/A";
         if (vehicle.fleet_code) {
@@ -143,14 +153,16 @@ const VehicleTrackerView = ({
             age = new Date().getFullYear() - fullYear;
           }
         }
-        
+
         // Create bus details object
         const details = {
           registration: vehicle.reg,
           model: vehicleType?.name || "Unknown Model",
           age: age !== "N/A" ? age : "N/A",
           manufacturer: vehicleType?.name?.split(" ")[0] || "Unknown",
-          fuelType: vehicleType?.fuel?.charAt(0).toUpperCase() + vehicleType?.fuel?.slice(1) || "Unknown",
+          fuelType:
+            vehicleType?.fuel?.charAt(0).toUpperCase() +
+              vehicleType?.fuel?.slice(1) || "Unknown",
           capacity: "N/A", // Capacity not available in API
           wheelchairAccessible: false, // Not available in API
           airConditioning: false, // Not available in API
@@ -163,40 +175,48 @@ const VehicleTrackerView = ({
           route: uniqueVehicleData[0]?.lineName || "N/A",
           operator: vehicle.operator?.name || "Unknown Operator",
           livery: vehicle.livery?.name || "Unknown Livery",
-          withdrawn: vehicle.withdrawn || false
+          withdrawn: vehicle.withdrawn || false,
         };
-        
+
         setBusDetails(details);
-        
+
         // Fetch image from Unsplash
         const unsplashResponse = await fetch(
-          `https://api.unsplash.com/search/photos?query=${encodeURIComponent(vehicleType?.name || vehicle.reg)}&client_id=${import.meta.env.VITE_UNSPLASH_ACCESS_KEY}&per_page=1`
+          `https://api.unsplash.com/search/photos?query=${encodeURIComponent(
+            vehicleType?.name || vehicle.reg
+          )}&client_id=${import.meta.env.VITE_UNSPLASH_ACCESS_KEY}&per_page=1`
         );
-        
+
         const unsplashData = await unsplashResponse.json();
         if (unsplashData.results && unsplashData.results.length > 0) {
           const imageUrl = unsplashData.results[0].urls.small;
           setBusImage(imageUrl);
         } else {
           // Fallback image
-          setBusImage(`https://placehold.co/600x400?text=${encodeURIComponent(vehicleType?.name || vehicle.reg)}`);
+          setBusImage(
+            `https://placehold.co/600x400?text=${encodeURIComponent(
+              vehicleType?.name || vehicle.reg
+            )}`
+          );
         }
       } else {
         // If no vehicle found by registration, try by fleet number
         const fleetResponse = await fetch(
-          `https://bustimes.org/api/vehicles/?fleet_code=${encodeURIComponent(vehicleId)}`
+          `https://bustimes.org/api/vehicles/?fleet_code=${encodeURIComponent(
+            vehicleId
+          )}`
         );
-        
+
         if (!fleetResponse.ok) {
           throw new Error(`API error: ${fleetResponse.status}`);
         }
-        
+
         const fleetData = await fleetResponse.json();
-        
+
         if (fleetData.results && fleetData.results.length > 0) {
           const vehicle = fleetData.results[0];
           const vehicleType = vehicle.vehicle_type;
-          
+
           // Calculate age from fleet code year if available
           let age = "N/A";
           if (vehicle.fleet_code) {
@@ -208,14 +228,16 @@ const VehicleTrackerView = ({
               age = new Date().getFullYear() - fullYear;
             }
           }
-          
+
           // Create bus details object
           const details = {
             registration: vehicle.reg,
             model: vehicleType?.name || "Unknown Model",
             age: age !== "N/A" ? age : "N/A",
             manufacturer: vehicleType?.name?.split(" ")[0] || "Unknown",
-            fuelType: vehicleType?.fuel?.charAt(0).toUpperCase() + vehicleType?.fuel?.slice(1) || "Unknown",
+            fuelType:
+              vehicleType?.fuel?.charAt(0).toUpperCase() +
+                vehicleType?.fuel?.slice(1) || "Unknown",
             capacity: "N/A", // Capacity not available in API
             wheelchairAccessible: false, // Not available in API
             airConditioning: false, // Not available in API
@@ -228,34 +250,46 @@ const VehicleTrackerView = ({
             route: uniqueVehicleData[0]?.lineName || "N/A",
             operator: vehicle.operator?.name || "Unknown Operator",
             livery: vehicle.livery?.name || "Unknown Livery",
-            withdrawn: vehicle.withdrawn || false
+            withdrawn: vehicle.withdrawn || false,
           };
-          
+
           setBusDetails(details);
-          
+
           // Fetch image from Unsplash
           const unsplashResponse = await fetch(
-            `https://api.unsplash.com/search/photos?query=${encodeURIComponent(vehicleType?.name || vehicle.reg)}&client_id=${import.meta.env.VITE_UNSPLASH_ACCESS_KEY}&per_page=1`
+            `https://api.unsplash.com/search/photos?query=${encodeURIComponent(
+              vehicleType?.name || vehicle.reg
+            )}&client_id=${import.meta.env.VITE_UNSPLASH_ACCESS_KEY}&per_page=1`
           );
-          
+
           const unsplashData = await unsplashResponse.json();
           if (unsplashData.results && unsplashData.results.length > 0) {
             const imageUrl = unsplashData.results[0].urls.small;
             setBusImage(imageUrl);
           } else {
             // Fallback image
-            setBusImage(`https://placehold.co/600x400?text=${encodeURIComponent(vehicleType?.name || vehicle.reg)}`);
+            setBusImage(
+              `https://placehold.co/600x400?text=${encodeURIComponent(
+                vehicleType?.name || vehicle.reg
+              )}`
+            );
           }
         } else {
-          setError("No vehicle details found for this ID. Please try another ID.");
-          setBusImage(`https://placehold.co/600x400?text=${encodeURIComponent(vehicleId)}`);
+          setError(
+            "No vehicle details found for this ID. Please try another ID."
+          );
+          setBusImage(
+            `https://placehold.co/600x400?text=${encodeURIComponent(vehicleId)}`
+          );
         }
       }
     } catch (err) {
       console.error("Error fetching bus details:", err);
       setError("Error fetching vehicle details. Please try again.");
       // Set fallback image
-      setBusImage(`https://placehold.co/600x400?text=${encodeURIComponent(vehicleId)}`);
+      setBusImage(
+        `https://placehold.co/600x400?text=${encodeURIComponent(vehicleId)}`
+      );
     } finally {
       setLoadingDetails(false);
     }
@@ -264,22 +298,28 @@ const VehicleTrackerView = ({
   const resolveStopNames = async (arrivals) => {
     return await Promise.all(
       arrivals.map(async (arrival) => {
-        if (arrival.stopPoint?.commonName) return arrival; // already has name
+        // Skip if we already have lat/lon
+        if (arrival.stopPoint?.lat && arrival.stopPoint?.lon) {
+          return arrival;
+        }
+
         try {
           const res = await fetch(
             `https://api.tfl.gov.uk/StopPoint/${arrival.naptanId}`
           );
+          if (!res.ok) return arrival;
+
           const stopData = await res.json();
           return {
             ...arrival,
             stopPoint: {
-              ...arrival.stopPoint,
-              commonName: stopData.commonName,
-              lat: stopData.lat,
-              lon: stopData.lon,
+              ...stopData,
+              commonName:
+                stopData.commonName || stopData.name || arrival.naptanId,
             },
           };
-        } catch {
+        } catch (err) {
+          console.warn("Failed to resolve stop:", arrival.naptanId, err);
           return arrival;
         }
       })
@@ -318,7 +358,7 @@ const VehicleTrackerView = ({
       // Enrich stop names BEFORE setting state
       const enrichedData = await resolveStopNames(data);
       setVehicleData(enrichedData);
-      
+
       // Fetch bus details after getting vehicle data
       fetchBusDetails(vehicleIdInput.trim());
     } catch (err) {
@@ -334,6 +374,12 @@ const VehicleTrackerView = ({
     const currentYear = new Date().getFullYear();
     return currentYear - year;
   };
+
+  useEffect(() => {
+    console.log("Vehicle data:", vehicleData);
+    console.log("Stop locations:", stopLocations);
+    console.log("Vehicle location:", vehicleLocation);
+  }, [vehicleData, stopLocations, vehicleLocation]);
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6">
@@ -408,15 +454,15 @@ const VehicleTrackerView = ({
                   <Bus className="w-5 h-5 mr-2 text-blue-600" /> Bus Details
                 </h3>
               </div>
-              
+
               <div className="p-4">
                 <div className="flex flex-col md:flex-row gap-6">
                   {/* Bus Image */}
                   <div className="md:w-1/3">
                     {busImage ? (
                       <div className="rounded-lg overflow-hidden border border-gray-200">
-                        <img 
-                          src={busImage} 
+                        <img
+                          src={busImage}
                           alt={`Bus ${busDetails.model}`}
                           className="w-full h-48 object-cover"
                         />
@@ -435,12 +481,14 @@ const VehicleTrackerView = ({
                       <div className="flex items-start space-x-2">
                         <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
                         <p className="text-xs text-yellow-700">
-                          <span className="font-medium">Note:</span> This image may not show the exact vehicle as it's sourced from Unsplash based on the bus model name.
+                          <span className="font-medium">Note:</span> This image
+                          may not show the exact vehicle as it's sourced from
+                          Unsplash based on the bus model name.
                         </p>
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* Bus Details */}
                   <div className="md:w-2/3">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -450,10 +498,12 @@ const VehicleTrackerView = ({
                         </div>
                         <div>
                           <p className="text-sm text-gray-500">Registration</p>
-                          <p className="font-medium">{busDetails.registration}</p>
+                          <p className="font-medium">
+                            {busDetails.registration}
+                          </p>
                         </div>
                       </div>
-                      
+
                       <div className="flex items-start space-x-3">
                         <div className="bg-blue-100 p-2 rounded-lg">
                           <Bus className="w-5 h-5 text-blue-600" />
@@ -463,27 +513,33 @@ const VehicleTrackerView = ({
                           <p className="font-medium">{busDetails.model}</p>
                         </div>
                       </div>
-                      
+
                       <div className="flex items-start space-x-3">
                         <div className="bg-blue-100 p-2 rounded-lg">
                           <Calendar className="w-5 h-5 text-blue-600" />
                         </div>
                         <div>
                           <p className="text-sm text-gray-500">Age</p>
-                          <p className="font-medium">{busDetails.age !== "N/A" ? `${busDetails.age} years` : "N/A"}</p>
+                          <p className="font-medium">
+                            {busDetails.age !== "N/A"
+                              ? `${busDetails.age} years`
+                              : "N/A"}
+                          </p>
                         </div>
                       </div>
-                      
+
                       <div className="flex items-start space-x-3">
                         <div className="bg-blue-100 p-2 rounded-lg">
                           <Wrench className="w-5 h-5 text-blue-600" />
                         </div>
                         <div>
                           <p className="text-sm text-gray-500">Fleet Number</p>
-                          <p className="font-medium">{busDetails.fleetNumber}</p>
+                          <p className="font-medium">
+                            {busDetails.fleetNumber}
+                          </p>
                         </div>
                       </div>
-                      
+
                       <div className="flex items-start space-x-3">
                         <div className="bg-blue-100 p-2 rounded-lg">
                           <Fuel className="w-5 h-5 text-blue-600" />
@@ -493,7 +549,7 @@ const VehicleTrackerView = ({
                           <p className="font-medium">{busDetails.fuelType}</p>
                         </div>
                       </div>
-                      
+
                       <div className="flex items-start space-x-3">
                         <div className="bg-blue-100 p-2 rounded-lg">
                           <Users className="w-5 h-5 text-blue-600" />
@@ -504,7 +560,7 @@ const VehicleTrackerView = ({
                         </div>
                       </div>
                     </div>
-                    
+
                     {/* Features */}
                     <div className="mt-4">
                       <p className="text-sm text-gray-500 mb-2">Features:</p>
@@ -605,14 +661,20 @@ const VehicleTrackerView = ({
             <h3 className="font-semibold text-gray-800 mb-2 flex items-center">
               <MapPin className="w-5 h-5 mr-2 text-blue-600" /> Live Map
             </h3>
-            <p className="text-sm text-gray-600 mb-2">
-              Showing all stops and the current position of the vehicle
-              (approximated by its next scheduled stop).
-            </p>
-            <BusMapComponent
-              stops={stopLocations}
-              vehicleLocation={vehicleLocation}
-            />
+            {stopLocations.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">
+                <Info className="w-8 h-8 mx-auto mb-2" />
+                <p>No stop locations available to display on map.</p>
+              </div>
+            ) : (
+              <div className="h-96 w-full">
+                <BusMapComponent
+                  stops={stopLocations}
+                  vehicleLocation={vehicleLocation}
+                  userLocation={null}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}

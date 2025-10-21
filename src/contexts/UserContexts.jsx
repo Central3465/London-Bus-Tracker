@@ -1,41 +1,128 @@
 // src/contexts/UserContext.jsx
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useState, useEffect, useContext } from "react";
 
 const UserContext = createContext();
 
-export const useUser = () => useContext(UserContext);
+export const useUser = () => {
+  return useContext(UserContext);
+};
 
 export const UserProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [subscription, setSubscription] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [token, setToken] = useState(localStorage.getItem("token") || null);
 
+  // Check if user is already logged in when component mounts
   useEffect(() => {
-  const fetchUserAndSub = async () => {
-    const email = localStorage.getItem("userEmail"); // Or from login state
-    if (!email) return;
+    const storedUser = localStorage.getItem("user");
+    const storedSubscription = localStorage.getItem("subscription");
 
-    try {
-      const res = await fetch(`http://localhost:5000/api/user/${email}`);
-      const data = await res.json();
-      setSubscription(data.subscription);
-    } catch (e) {
-      console.warn("Failed to fetch subscription");
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
     }
-    setLoading(false);
+
+    if (storedSubscription) {
+      setSubscription(JSON.parse(storedSubscription));
+    }
+
+    setIsLoading(false);
+  }, []);
+
+  const login = async (email, password) => {
+    try {
+      const response = await fetch("http://localhost:5000/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Login failed");
+      }
+
+      const data = await response.json();
+      setUser(data.user);
+      setSubscription(data.subscription || null);
+
+      // Store user and subscription in localStorage
+      localStorage.setItem("user", JSON.stringify(data.user));
+      if (data.subscription) {
+        localStorage.setItem("subscription", JSON.stringify(data.subscription));
+      }
+
+      return data;
+    } catch (error) {
+      throw error;
+    }
   };
 
-  fetchUserAndSub();
-}, []);
+  const signup = async (email, password, name) => {
+    try {
+      const response = await fetch("http://localhost:5000/api/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password, name }),
+      });
 
-  const updateSubscription = (newSub) => {
-    setSubscription(newSub);
-    localStorage.setItem("lbtSubscription", JSON.stringify(newSub));
+      if (!response.ok) {
+        throw new Error("Signup failed");
+      }
+
+      const data = await response.json();
+      setUser(data.user);
+      setSubscription(data.subscription || null);
+
+      // Store user and subscription in localStorage
+      localStorage.setItem("user", JSON.stringify(data.user));
+      if (data.subscription) {
+        localStorage.setItem("subscription", JSON.stringify(data.subscription));
+      }
+
+      return data;
+    } catch (error) {
+      throw error;
+    }
   };
 
-  return (
-    <UserContext.Provider value={{ user, subscription, loading, updateSubscription }}>
-      {children}
-    </UserContext.Provider>
-  );
+  const logout = () => {
+    setUser(null);
+    setSubscription(null);
+    localStorage.removeItem("user");
+    localStorage.removeItem("subscription");
+  };
+
+  const updateSubscription = async () => {
+  if (!user?.email) return; // Need email to fetch
+
+  try {
+    const response = await fetch(`http://localhost:5000/api/user/${encodeURIComponent(user.email)}`);
+    if (response.ok) {
+      const data = await response.json();
+      setSubscription(data.subscription);
+      // Also update localStorage
+      if (data.subscription) {
+        localStorage.setItem("subscription", JSON.stringify(data.subscription));
+      }
+    }
+  } catch (err) {
+    console.error("Failed to refresh subscription", err);
+  }
+};
+
+  const value = {
+    user,
+    subscription,
+    isLoading,
+    login,
+    signup,
+    logout,
+    updateSubscription,
+  };
+
+  return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
 };

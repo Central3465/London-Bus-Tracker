@@ -1,3 +1,17 @@
 {
-  "users": {}
+  "users": {
+    "hanlinbai667": {
+      "id": "hanlinbai667",
+      "email": "hanlinbai667@gmail.com",
+      "name": "Hanlin Bai",
+      "password": "123123",
+      "subscription": {
+        "isActive": false,
+        "plan": null,
+        "daysRemaining": 0,
+        "expiresAt": null,
+        "stripeSubscriptionId": null
+      }
+    }
+  }
 }

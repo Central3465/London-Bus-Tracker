@@ -20,11 +20,13 @@ import {
   Info,
 } from "lucide-react";
 import BusMap from "../BusMap";
+import BusMapComponent from "./BusMapComponent";
 import { fetchTflRouteSequence } from "../utils/api";
 const LiveBusView = ({
   selectedStop,
   liveArrivals,
   scheduledDepartures,
+  fetchVehicleDetails,
   searchQuery,
   setSearchQuery,
   refreshData,
@@ -43,6 +45,8 @@ const LiveBusView = ({
   favorites,
   toggleFavorite,
 }) => {
+  const [liveVehicleJourney, setLiveVehicleJourney] = useState(null);
+  const [isTrackingVehicle, setIsTrackingVehicle] = useState(false);
   const [selectedArrival, setSelectedArrival] = useState(null);
   const [timeFormat, setTimeFormat] = useState("minutes");
   const [vehicleJourneyData, setVehicleJourneyData] = useState(null);
@@ -57,18 +61,36 @@ const LiveBusView = ({
   const [selectedAllStop, setSelectedAllStop] = useState(null);
   const [allStopTrips, setAllStopTrips] = useState([]);
   const [tripsLoading, setTripsLoading] = useState(false);
-  const resolveStopName = async (atcoOrNaptanId) => {
-    if (!atcoOrNaptanId) return "Unknown Stop";
-    try {
-      const res = await fetch(
-        `https://api.tfl.gov.uk/StopPoint/${atcoOrNaptanId}`
-      );
-      if (!res.ok) return atcoOrNaptanId;
-      const data = await res.json();
-      return data.commonName || data.stopLetter || atcoOrNaptanId;
-    } catch {
-      return atcoOrNaptanId;
-    }
+  const resolveStopNames = async (arrivals) => {
+    return await Promise.all(
+      arrivals.map(async (arrival) => {
+        if (arrival.stopPoint?.commonName || arrival.stopPoint?.name) {
+          return arrival; // already resolved
+        }
+
+        try {
+          const res = await fetch(
+            `https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(
+              arrival.naptanId?.trim() || ""
+            )}`
+          );
+          if (!res.ok) return arrival;
+
+          const stopData = await res.json();
+          return {
+            ...arrival,
+            stopPoint: {
+              ...stopData,
+              commonName:
+                stopData.commonName || stopData.name || arrival.naptanId,
+            },
+          };
+        } catch (err) {
+          console.warn("Failed to resolve stop:", arrival.naptanId, err);
+          return arrival;
+        }
+      })
+    );
   };
   // Fetch all TfL stops based on search query
   const searchAllStops = async (query) => {
@@ -199,135 +221,76 @@ const LiveBusView = ({
 
   const [isFetching, setIsFetching] = useState(false);
 
+  // Replace the existing fetchScheduledTrip function with this one
+
   const fetchScheduledTrip = async (lineId, destinationName) => {
-    if (isFetching) return; // prevent duplicate calls
+    if (isFetching) return;
     setIsFetching(true);
     setJourneyDataLoading(true);
     setVehicleJourneyData(null);
-    setJourneyDataSource(""); // Reset source
+    setJourneyDataSource("");
+
     try {
-      console.log(`Fetching schedule for line: ${lineId} from TfL API...`);
+      console.log(`Fetching route sequence for line: ${lineId} from TfL...`);
       const { error: tflError, data: tflData } = await fetchTflRouteSequence(
         lineId
       );
+
       if (!tflError && tflData) {
-        console.log("TfL route data received successfully.");
-        // Process TfL data - correct structure assumption
         let tflStops = [];
-        // Check if data has a 'stations' property (which is the case based on your description)
-        if (tflData && Array.isArray(tflData.stations)) {
+        if (tflData.stopPointSequences?.[0]?.stopPoints) {
+          tflStops = tflData.stopPointSequences[0].stopPoints;
+        } else if (Array.isArray(tflData.stations)) {
           tflStops = tflData.stations;
-        } else if (
-          tflData &&
-          tflData.stopPointSequences &&
-          tflData.stopPointSequences.length > 0
-        ) {
-          // Fallback: use stopPointSequences if available
-          tflStops = tflData.stopPointSequences[0].stopPoints || [];
-        } else {
-          console.warn("Unexpected TfL data structure:", tflData);
         }
-        // Normalize TfL stop structure for consistency
-        const normalizedStops = await Promise.all(
-          tflStops.map(async (stop) => {
-            // Correct property names for TfL stop objects
-            // For stations array, the stop ID is usually 'naptanId' and name is 'commonName'
-            const stopId = stop.naptanId || stop.id; // TfL uses naptanId
-            // Try to get the name from commonName, otherwise fall back to other properties
-            let stopName =
-              stop.commonName || stop.name || stop.stopLetter || "Unknown Stop";
-            let finalName = stopName;
-            // Only resolve via API if the name is still "Unknown Stop" and we have an ID
-            if (finalName === "Unknown Stop" && stopId) {
-              finalName = await resolveStopName(stopId); // Resolve via API if needed
-            }
-            return {
-              id: stopId,
-              name: finalName,
-              lat: stop.lat,
-              lon: stop.lon,
-              // Note: TfL route sequence does NOT provide arrival/departure times
-              // So we don't include timing properties here
-              type: "tfl",
-            };
-          })
-        );
+
+        const normalizedStops = tflStops.map((stop) => ({
+          id: stop.naptanId || stop.id,
+          name: stop.commonName || stop.name || "Unknown Stop",
+          lat: stop.lat,
+          lon: stop.lon,
+          type: "tfl",
+        }));
+
         setVehicleJourneyData(normalizedStops);
         setJourneyDataSource("tfl");
-        return; // Exit after TfL success
+        console.log("Loaded route sequence from TfL (no scheduled times).");
       } else {
-        console.warn(
-          `TfL API failed or returned no data for line ${lineId}:`,
-          tflError
-        );
-        // If TfL fails, try bustimes.org
-        console.log(
-          `Fetching schedule for line: ${lineId}, destination: ${destinationName} from bustimes.org...`
-        );
-        const response = await fetch(
-          `https://bustimes.org/api/trips/?service__line_name=${encodeURIComponent(
-            lineId
-          )}&headsign=${encodeURIComponent(destinationName)}`
-        );
-        if (!response.ok) {
-          if (response.status === 404) {
-            console.warn(
-              `bustimes.org schedule not found for line: ${lineId}, destination: ${destinationName}`
-            );
-            setVehicleJourneyData([]);
-            setJourneyDataSource("bustimes");
-            return;
-          }
-          throw new Error(`bustimes.org API error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        console.log(
-          `bustimes.org schedule data for ${lineId} to ${destinationName}:`,
-          data
-        );
-        if (data.results && data.results.length > 0) {
-          const firstMatch = data.results[0];
-          const normalizedBustimesStops = await Promise.all(
-            firstMatch.times.map(async (stopTime) => {
-              const stopId = stopTime.stop?.atco_code;
-              const stopName =
-                stopTime.stop?.name ||
-                stopTime.stop?.common_name ||
-                (stopId ? await resolveStopName(stopId) : "Unknown Stop");
-              return {
-                id: stopId,
-                name: stopName,
-                aimedArrival: stopTime.aimed_arrival_time,
-                aimedDeparture: stopTime.aimed_departure_time,
-                type: "bustimes",
-              };
-            })
-          );
-          setVehicleJourneyData(normalizedBustimesStops);
-          setJourneyDataSource("bustimes");
-        } else {
-          console.log(
-            `No bustimes.org trips found for line: ${lineId}, destination: ${destinationName}`
-          );
-          setVehicleJourneyData([]);
-          setJourneyDataSource("bustimes");
-        }
+        console.warn(`TfL route sequence failed for ${lineId}:`, tflError);
+        setVehicleJourneyData([]);
       }
     } catch (err) {
-      console.error(
-        "Error fetching scheduled trip (TfL or bustimes.org):",
-        err
-      );
-      setVehicleJourneyData([]); // Set to empty array on error
-      setJourneyDataSource("");
+      console.error("Error in fetchScheduledTrip:", err);
+      setVehicleJourneyData([]);
     } finally {
-      setJourneyDataLoading(false); // ALWAYS called
+      setJourneyDataLoading(false);
       setIsFetching(false);
     }
   };
-  const handleArrivalClick = (arrival) => {
+  const handleArrivalClick = async (arrival) => {
     setSelectedArrival(arrival);
+
+    // Fetch static route for fallback
     fetchScheduledTrip(arrival.lineId, arrival.destinationName);
+
+    // NEW: If we have a vehicleId, fetch its live journey
+    if (arrival.vehicleId) {
+      try {
+        const { error, data } = await fetchVehicleDetails(arrival.vehicleId);
+        if (!error && data && data.length > 0) {
+          // Enrich with stop names if needed (like in VehicleTracker)
+          const enrichedData = await resolveStopNames(data); // ← plural!
+          setLiveVehicleJourney(enrichedData); // ← new state
+        } else {
+          setLiveVehicleJourney(null);
+        }
+      } catch (err) {
+        console.error("Failed to fetch live vehicle journey:", err);
+        setLiveVehicleJourney(null);
+      }
+    } else {
+      setLiveVehicleJourney(null);
+    }
   };
   const closeDetailedView = () => {
     setSelectedArrival(null);
@@ -380,28 +343,31 @@ const LiveBusView = ({
       selectedArrival.expectedArrival,
       selectedArrival.scheduledArrival
     );
-    const formatTimeForDetail = (isoString) => {
+
+    const formatStopTime = (isoString) => {
       if (!isoString) return "N/A";
       if (timeFormat === "clock") {
-        const date = new Date(isoString);
-        return date.toLocaleTimeString([], {
+        return new Date(isoString).toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
         });
       } else {
         const now = new Date();
         const arrivalTime = new Date(isoString);
-        const diffMs = arrivalTime - now;
-        const diffMins = Math.round(diffMs / 60000);
-        if (diffMins < 0) {
-          return `-${Math.abs(diffMins)} min ago`;
-        } else if (diffMins === 0) {
-          return "Due";
-        } else {
-          return `${diffMins} min`;
-        }
+        const diffMins = Math.round((arrivalTime - now) / 60000);
+        if (diffMins < 0) return `-${Math.abs(diffMins)} min ago`;
+        if (diffMins === 0) return "Due";
+        return `${diffMins} min`;
       }
     };
+
+    // ✅ Fix: derive scheduled time for detail view consistently
+    const detailScheduledTime = selectedArrival.scheduledArrival
+      ? formatStopTime(selectedArrival.scheduledArrival)
+      : selectedArrival.isScheduled && selectedArrival.tripId
+      ? "Scheduled"
+      : "N/A";
+
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
@@ -416,6 +382,7 @@ const LiveBusView = ({
               <X className="w-5 h-5 text-gray-600" />
             </button>
           </div>
+
           {/* Service Info */}
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center space-x-3">
@@ -454,87 +421,252 @@ const LiveBusView = ({
                   ` by ${serviceStatus.minutes} min`}
               </span>
             </div>
+
+            {/* ✅ Single Track Vehicle Button */}
+            {(liveVehicleJourney?.length > 0 ||
+              vehicleJourneyData?.length > 0) && (
+              <div className="mt-4">
+                <button
+                  onClick={() => setIsTrackingVehicle(true)}
+                  className="w-full py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+                >
+                  <Bus className="w-4 h-4" />
+                  <span>Track Vehicle</span>
+                </button>
+              </div>
+            )}
           </div>
+
           <div className="p-4">
-            <h4 className="font-semibold text-gray-800 mb-3">Stop Timetable</h4>
+            {/* ✅ Single Time Format Toggle */}
+            <div className="flex justify-end mb-2">
+              <button
+                onClick={toggleTimeFormat}
+                className="flex items-center space-x-1 p-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-xs"
+              >
+                {timeFormat === "minutes" ? (
+                  <CalendarClock className="w-3 h-3" />
+                ) : (
+                  <Clock className="w-3 h-3" />
+                )}
+                <span>{timeFormat === "minutes" ? "HH:MM" : "Min"}</span>
+              </button>
+            </div>
+
+            <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+              <Navigation className="w-5 h-5 mr-2 text-blue-600" /> Full Route
+              Schedule
+            </h4>
+
             {journeyDataLoading ? (
               <div className="text-center py-4">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                <p className="text-gray-600">Loading schedule...</p>
+                <p className="text-gray-600">Loading full route...</p>
               </div>
-            ) : Array.isArray(vehicleJourneyData) &&
-              vehicleJourneyData.length > 0 ? (
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {vehicleJourneyData.map((stop, i) => {
-                  // Format times if they exist (assume HH:mm:ss format)
-                  const formatTimeDisplay = (timeStr) => {
-                    if (!timeStr) return "–";
-                    // Extract HH:mm from "HH:mm:ss"
-                    const parts = timeStr.split(":");
-                    if (parts.length >= 2) return `${parts[0]}:${parts[1]}`;
-                    return timeStr;
-                  };
+            ) : liveVehicleJourney && liveVehicleJourney.length > 0 ? (
+              // Live + Scheduled
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                <div className="flex justify-between items-center p-3 bg-gray-100 font-semibold text-sm border-b border-gray-200">
+                  <span className="flex-1">Stop</span>
+                  <span className="min-w-[80px] text-right">Scheduled</span>
+                  <span className="min-w-[80px] text-right">Actual</span>
+                </div>
+                {liveVehicleJourney.map((stop, index) => {
+                  let scheduledStop = vehicleJourneyData?.find(
+                    (s) => s.id === stop.naptanId
+                  );
+                  if (!scheduledStop && stop.stopPoint?.commonName) {
+                    scheduledStop = vehicleJourneyData?.find(
+                      (s) =>
+                        s.name &&
+                        s.name
+                          .toLowerCase()
+                          .includes(stop.stopPoint.commonName.toLowerCase())
+                    );
+                  }
+                  if (!scheduledStop && stop.stopPoint?.name) {
+                    scheduledStop = vehicleJourneyData?.find(
+                      (s) =>
+                        s.name &&
+                        s.name
+                          .toLowerCase()
+                          .includes(stop.stopPoint.name.toLowerCase())
+                    );
+                  }
 
-                  // For bustimes.org data, show arrival/departure times
-                  // For TfL data, show just the stop name in order
-                  const showTimes = journeyDataSource === "bustimes";
+                  const scheduledTime = scheduledStop?.aimedArrival
+                    ? `${new Date().toISOString().split("T")[0]}T${
+                        scheduledStop.aimedArrival
+                      }`
+                    : null;
 
                   return (
                     <div
-                      key={stop.id || i}
-                      className={`flex justify-between items-center p-2 border-b border-gray-100 last:border-b-0 ${
-                        i === 0 ? "bg-blue-50" : "" // Highlight first stop like VehicleTracker
+                      key={`${stop.naptanId}-${index}`}
+                      className={`flex justify-between items-center p-3 border-b border-gray-200 last:border-b-0 ${
+                        index === 0 ? "bg-blue-100" : ""
                       }`}
                     >
+                      {index === 0 && (
+                        <span className="ml-2 text-blue-600">
+                          <Bus className="w-4 h-4 inline" />
+                        </span>
+                      )}
                       <span className="text-gray-700 flex-1">
-                        {i + 1}. {stop.name || "Unknown Stop"}
+                        {index + 1}.{" "}
+                        {stop.stopPoint?.commonName ||
+                          stop.stopPoint?.name ||
+                          stop.naptanId ||
+                          "Unknown Stop"}
                       </span>
-                      {showTimes && (
-                        <div className="flex flex-col items-end text-sm text-gray-500 ml-2 min-w-[80px]">
-                          {stop.aimedArrival && (
-                            <span>
-                              Arr: {formatTimeDisplay(stop.aimedArrival)}
-                            </span>
-                          )}
-                          {stop.aimedDeparture && (
-                            <span>
-                              Dep: {formatTimeDisplay(stop.aimedDeparture)}
-                            </span>
-                          )}
-                          {!stop.aimedArrival && !stop.aimedDeparture && (
-                            <span className="text-xs text-gray-400">
-                              No time
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      {!showTimes && (
-                        <div className="text-xs text-gray-400 italic">
-                          Route order only
-                        </div>
-                      )}
+                      <span className="text-sm text-gray-500 min-w-[80px] text-right">
+                        {scheduledTime ? formatStopTime(scheduledTime) : "N/A"}
+                      </span>
+                      <span className="text-sm text-gray-500 min-w-[80px] text-right">
+                        {formatStopTime(stop.expectedArrival)}
+                      </span>
                     </div>
                   );
                 })}
-                {!journeyDataLoading && journeyDataSource === "tfl" && (
-                  <div className="text-xs text-gray-500 mt-2 p-2 bg-gray-50 rounded">
-                    <Info className="w-3 h-3 inline mr-1" />
-                    Showing route sequence from TfL. Timing data not available.
-                  </div>
-                )}
+              </div>
+            ) : Array.isArray(vehicleJourneyData) &&
+              vehicleJourneyData.length > 0 ? (
+              // Static schedule only
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                <div className="flex justify-between items-center p-3 bg-gray-100 font-semibold text-sm border-b border-gray-200">
+                  <span className="flex-1">Stop</span>
+                  <span className="min-w-[80px] text-right">Scheduled</span>
+                  <span className="min-w-[80px] text-right">Actual</span>
+                </div>
+                {vehicleJourneyData.map((stop, index) => {
+                  const scheduledTime = stop.aimedArrival
+                    ? `${new Date().toISOString().split("T")[0]}T${
+                        stop.aimedArrival
+                      }`
+                    : null;
+                  return (
+                    <div
+                      key={stop.id || index}
+                      className={`flex justify-between items-center p-3 border-b border-gray-200 last:border-b-0 ${
+                        index === 0 ? "bg-blue-100" : ""
+                      }`}
+                    >
+                      <span className="text-gray-700 flex-1">
+                        {index + 1}. {stop.name || "Unknown Stop"}
+                      </span>
+                      <span className="text-sm text-gray-500 min-w-[80px] text-right">
+                        {scheduledTime ? formatStopTime(scheduledTime) : "N/A"}
+                      </span>
+                      <span className="text-sm text-gray-500 min-w-[80px] text-right">
+                        N/A
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-4 text-gray-500">
-                <p>No detailed schedule available for this service.</p>
-                {selectedArrival?.lineId && (
-                  <p className="text-xs mt-1">
-                    (Could not find schedule for {selectedArrival.lineId})
-                  </p>
-                )}
+                <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-yellow-500" />
+                <p>No route data available for this service.</p>
+              </div>
+            )}
+
+            {/* Source Info */}
+            {/* Source Info */}
+            {journeyDataSource === "tfl" && (
+              <div className="mt-2 text-xs text-yellow-700 p-2 bg-yellow-50 border border-yellow-200 rounded flex items-start">
+                <AlertTriangle className="w-3 h-3 inline mr-1 flex-shrink-0 mt-0.5" />
+                <span>
+                  Scheduled times not available.{" "}
+                  {selectedArrival?.vehicleId ? (
+                    <>
+                      View full schedule and live map for this bus on{" "}
+                      <a
+                        href={`https://bustimes.org/vehicles/tflo-${selectedArrival.vehicleId.toLowerCase()}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline font-medium"
+                      >
+                        bustimes.org
+                      </a>
+                      .
+                    </>
+                  ) : (
+                    <>
+                      Check the full timetable on{" "}
+                      <a
+                        href="https://bustimes.org/operators/tf-london"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline font-medium"
+                      >
+                        bustimes.org
+                      </a>
+                      .
+                    </>
+                  )}
+                </span>
+              </div>
+            )}
+            {journeyDataSource === "bustimes" && (
+              <div className="mt-2 text-xs text-gray-500 p-2 bg-gray-50 rounded">
+                <Info className="w-3 h-3 inline mr-1" />
+                Schedule from bustimes.org.
               </div>
             )}
           </div>
         </div>
+
+        {/* Vehicle Tracker Map Modal */}
+        {isTrackingVehicle && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl h-[80vh] relative">
+              <div className="sticky top-0 bg-white p-4 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-gray-800">
+                  Vehicle Tracker
+                </h3>
+                <button
+                  onClick={() => setIsTrackingVehicle(false)}
+                  className="p-1 rounded-full hover:bg-gray-100"
+                  aria-label="Close map"
+                >
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+              <div className="h-[calc(100%-60px)] w-full">
+                <BusMapComponent
+                  stops={
+                    liveVehicleJourney
+                      ? liveVehicleJourney
+                          .filter((s) => s.stopPoint?.lat && s.stopPoint?.lon)
+                          .map((s) => ({
+                            lat: s.stopPoint.lat,
+                            lng: s.stopPoint.lon,
+                            stopName:
+                              s.stopPoint.commonName ||
+                              s.stopPoint.name ||
+                              s.naptanId,
+                          }))
+                      : vehicleJourneyData?.map((stop) => ({
+                          lat: stop.lat,
+                          lng: stop.lon,
+                          stopName: stop.name,
+                        })) || []
+                  }
+                  vehicleLocation={
+                    liveVehicleJourney?.[0]?.stopPoint
+                      ? {
+                          lat: liveVehicleJourney[0].stopPoint.lat,
+                          lng: liveVehicleJourney[0].stopPoint.lon,
+                        }
+                      : null
+                  }
+                  userLocation={userLocation || null}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

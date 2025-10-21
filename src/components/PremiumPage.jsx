@@ -11,11 +11,12 @@ import {
   CreditCard,
   Calendar,
   CheckCircle,
-  Mail,
   AlertCircle,
   RefreshCw,
+  User,
 } from "lucide-react";
 import { useUser } from "../contexts/UserContexts";
+import { Link } from "react-router-dom";
 
 const premiumFeatures = [
   {
@@ -62,34 +63,29 @@ const pricingPlans = [
 ];
 
 const PremiumPage = () => {
-  const { subscription, updateSubscription } = useUser();
+  const { user, subscription, updateSubscription } = useUser();
   const [selectedTier, setSelectedTier] = useState(null);
-  const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handlePurchase = async () => {
-    setError("");
-    if (!email) {
-      setError("Please enter your email address.");
-      return;
-    }
-    if (!/\S+@\S+\.\S+/.test(email)) {
-      setError("Please enter a valid email address.");
-      return;
-    }
+    if (!selectedTier) return;
 
+    setError("");
     setIsSubmitting(true);
+
     try {
       const response = await fetch(
         "http://localhost:5000/api/create-checkout-session",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, plan: selectedTier.label }),
+          body: JSON.stringify({
+            email: user.email, // 👈 You need to send the user's email!
+            plan: selectedTier.label,
+          }),
         }
       );
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `HTTP ${response.status}`);
@@ -107,7 +103,6 @@ const PremiumPage = () => {
     }
   };
 
-  // ✅ Check if subscription is active AND has days remaining
   const hasActiveSubscription =
     subscription?.isActive && (subscription.daysRemaining || 0) > 0;
 
@@ -129,7 +124,7 @@ const PremiumPage = () => {
           </p>
         </div>
 
-        {/* ✅ Subscription Status Banner — Always shown if active */}
+        {/* Subscription Status Banner */}
         {hasActiveSubscription && (
           <div className="bg-green-50 border border-green-200 rounded-xl p-5 mb-10 max-w-2xl mx-auto text-center animate-in fade-in duration-300">
             <div className="flex flex-col items-center justify-center space-y-2">
@@ -155,7 +150,7 @@ const PremiumPage = () => {
           </div>
         )}
 
-        {/* Features — Always shown */}
+        {/* Features */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
           {premiumFeatures.map((feature, index) => (
             <div
@@ -179,7 +174,7 @@ const PremiumPage = () => {
           ))}
         </div>
 
-        {/* ✅ Conditional Rendering: Show purchase UI ONLY if no active subscription */}
+        {/* Purchase Section */}
         {!hasActiveSubscription ? (
           <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 mb-8">
             <h2 className="text-xl font-bold text-gray-900 text-center mb-6">
@@ -197,7 +192,6 @@ const PremiumPage = () => {
                   }`}
                   onClick={() => {
                     setSelectedTier(plan);
-                    setEmail("");
                     setError("");
                   }}
                 >
@@ -214,51 +208,52 @@ const PremiumPage = () => {
                   </p>
                 </div>
 
-                {/* Email Input */}
-                <div className="max-w-md mx-auto space-y-2">
-                  <label
-                    htmlFor="email"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Email address
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Mail className="h-5 w-5 text-gray-400" />
+                {/* Authenticated: show Subscribe button */}
+                {user ? (
+                  <>
+                    {error && (
+                      <div className="max-w-md mx-auto flex items-center text-red-600 text-sm">
+                        <AlertCircle className="w-4 h-4 mr-1" />
+                        {error}
+                      </div>
+                    )}
+                    <div className="text-center">
+                      <button
+                        onClick={handlePurchase}
+                        disabled={isSubmitting}
+                        className={`mt-2 px-6 py-2 rounded-lg font-medium transition-colors ${
+                          isSubmitting
+                            ? "bg-indigo-400 cursor-not-allowed"
+                            : "bg-indigo-600 hover:bg-indigo-700"
+                        } text-white`}
+                      >
+                        {isSubmitting ? "Redirecting..." : "Subscribe Now"}
+                      </button>
                     </div>
-                    <input
-                      type="email"
-                      id="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="you@example.com"
-                    />
-                  </div>
-                </div>
-
-                {/* Error Message */}
-                {error && (
-                  <div className="max-w-md mx-auto flex items-center text-red-600 text-sm">
-                    <AlertCircle className="w-4 h-4 mr-1" />
-                    {error}
+                  </>
+                ) : (
+                  /* Not authenticated: show sign-in prompt */
+                  <div className="max-w-md mx-auto space-y-4">
+                    <div className="text-center">
+                      <Link
+                        to="/signin"
+                        className="inline-flex items-center justify-center w-full px-4 py-2.5 border border-transparent text-base font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      >
+                        <User className="w-4 h-4 mr-2" />
+                        Sign in to subscribe
+                      </Link>
+                    </div>
+                    <p className="text-center text-sm text-gray-600">
+                      Don’t have an account?{" "}
+                      <Link
+                        to="/signup"
+                        className="font-medium text-indigo-600 hover:text-indigo-700"
+                      >
+                        Sign up
+                      </Link>
+                    </p>
                   </div>
                 )}
-
-                {/* Subscribe Button */}
-                <div className="text-center">
-                  <button
-                    onClick={handlePurchase}
-                    disabled={isSubmitting}
-                    className={`mt-2 px-6 py-2 rounded-lg font-medium transition-colors ${
-                      isSubmitting
-                        ? "bg-indigo-400 cursor-not-allowed"
-                        : "bg-indigo-600 hover:bg-indigo-700"
-                    } text-white`}
-                  >
-                    {isSubmitting ? "Redirecting..." : "Subscribe Now"}
-                  </button>
-                </div>
               </div>
             ) : (
               <p className="text-center text-gray-500">
@@ -267,12 +262,11 @@ const PremiumPage = () => {
             )}
 
             <p className="text-center text-xs text-gray-500 mt-6">
-              Subscriptions renew automatically unless cancelled. Manage or cancel
-              anytime in your account settings.
+              Subscriptions renew automatically unless cancelled. Manage or
+              cancel anytime in your account settings.
             </p>
           </div>
         ) : (
-          // ✅ Optional: Show a "Thank You" message when subscribed
           <div className="text-center mb-8">
             <p className="text-gray-600">
               Thank you for supporting London Bus Tracker! 🚌✨

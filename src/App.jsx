@@ -29,6 +29,9 @@ import SettingsPage from "./components/Settings";
 import NotFoundPage from "./components/NotFoundPage";
 import SuccessPage from "./components/SuccessPage";
 import CancelPage from "./components/CancelPage";
+import SignInPage from './components/SignInPage';
+import SignUpPage from './components/SignUpPage';
+import Navigation1 from "./components/Navigation";
 import { useUser } from "./contexts/UserContexts";
 
 import {
@@ -793,6 +796,7 @@ const App = () => {
                   theme={theme}
                   getInputTextColor={getInputTextColor}
                   getInputBgAndBorder={getInputBgAndBorder}
+                  fetchVehicleDetails={fetchVehicleDetails}
                 />
               }
             />
@@ -868,6 +872,8 @@ const App = () => {
 
             <Route path="/success" element={<SuccessPage />} />
             <Route path="/cancel" element={<CancelPage />} />
+            <Route path="/signin" element={<SignInPage />} />
+            <Route path="/signup" element={<SignUpPage />} />
 
             {/* Optional: Add a catch-all route for 404 */}
             <Route path="*" element={<NotFoundPage></NotFoundPage>} />

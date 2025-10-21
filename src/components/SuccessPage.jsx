@@ -1,34 +1,53 @@
-// src/components/SuccessPage.jsx
-import React, { useEffect } from 'react';
-import { CheckCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { useUser } from "../contexts/UserContexts";
+import React, { useEffect } from "react";
 
 const SuccessPage = () => {
   const navigate = useNavigate();
+  const { updateSubscription } = useUser();
+  const [params] = useSearchParams();
+  const sessionId = params.get("session_id");
 
   useEffect(() => {
-    // Optional: auto-redirect after 3 seconds
-    const timer = setTimeout(() => {
-      navigate('/');
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, [navigate]);
+    const verifyAndRedirect = async () => {
+      if (!sessionId) return;
+
+      try {
+        // ✅ Verify payment with backend
+        const res = await fetch(`http://localhost:5000/api/verify-session/${sessionId}`);
+        const data = await res.json();
+
+        if (data.success) {
+          console.log("✅ Payment verified — updating subscription");
+          await updateSubscription();
+        } else {
+          console.warn("⚠️ Payment not yet verified");
+        }
+      } catch (err) {
+        console.error("Error verifying session:", err);
+      }
+
+      // Redirect after a short delay
+      setTimeout(() => {
+        navigate("/plus");
+      }, 2000);
+    };
+
+    verifyAndRedirect();
+  }, [sessionId, updateSubscription, navigate]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-      <div className="mb-6 p-4 bg-green-50 rounded-full">
-        <CheckCircle className="w-16 h-16 text-green-500" />
+    <div className="min-h-screen flex items-center justify-center bg-green-50">
+      <div className="text-center">
+        <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <h2 className="text-2xl font-bold text-gray-800">Payment Successful!</h2>
+        <p className="text-gray-600 mt-2">Redirecting to your premium features...</p>
       </div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h1>
-      <p className="text-gray-600 mb-6">
-        Your subscription is now active. Redirecting to the app...
-      </p>
-      <button
-        onClick={() => navigate('/')}
-        className="text-blue-600 hover:underline font-medium"
-      >
-        Go to Home Now
-      </button>
     </div>
   );
 };
