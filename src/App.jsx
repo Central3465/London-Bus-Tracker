@@ -761,6 +761,7 @@ const App = () => {
                   favorites={favorites}
                   toggleFavorite={toggleFavorite}
                   fetchVehicleJourney={fetchVehicleJourney}
+                  fetchVehicleDetails={fetchVehicleDetails}
                   theme={theme}
                   getInputTextColor={getInputTextColor}
                   getInputBgAndBorder={getInputBgAndBorder}

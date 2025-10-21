@@ -29,34 +29,42 @@ export const UserProvider = ({ children }) => {
     setIsLoading(false);
   }, []);
 
-  const login = async (email, password) => {
-    try {
-      const response = await fetch("http://localhost:5000/api/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Login failed");
-      }
-
-      const data = await response.json();
-      setUser(data.user);
-      setSubscription(data.subscription || null);
-
-      // Store user and subscription in localStorage
-      localStorage.setItem("user", JSON.stringify(data.user));
-      if (data.subscription) {
-        localStorage.setItem("subscription", JSON.stringify(data.subscription));
-      }
-
-      return data;
-    } catch (error) {
-      throw error;
+  // Inside UserContext
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      // Optional: verify token is still valid by calling /api/user/me
+      fetch("http://localhost:5000/api/user/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          setUser(data.user);
+          setSubscription(data.subscription);
+        })
+        .catch(() => {
+          // Token invalid → clear it
+          localStorage.removeItem("token");
+        });
     }
+  }, []);
+
+  const login = async (email, password) => {
+    const res = await fetch("http://localhost:5000/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.error);
+
+    // ✅ SAVE TOKEN TO localStorage
+    localStorage.setItem("token", data.token);
+
+    // Update context
+    setUser(data.user);
+    setSubscription(data.subscription);
   };
 
   const signup = async (email, password, name) => {
@@ -97,22 +105,27 @@ export const UserProvider = ({ children }) => {
   };
 
   const updateSubscription = async () => {
-  if (!user?.email) return; // Need email to fetch
+    if (!user?.email) return; // Need email to fetch
 
-  try {
-    const response = await fetch(`http://localhost:5000/api/user/${encodeURIComponent(user.email)}`);
-    if (response.ok) {
-      const data = await response.json();
-      setSubscription(data.subscription);
-      // Also update localStorage
-      if (data.subscription) {
-        localStorage.setItem("subscription", JSON.stringify(data.subscription));
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/user/${encodeURIComponent(user.email)}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setSubscription(data.subscription);
+        // Also update localStorage
+        if (data.subscription) {
+          localStorage.setItem(
+            "subscription",
+            JSON.stringify(data.subscription)
+          );
+        }
       }
+    } catch (err) {
+      console.error("Failed to refresh subscription", err);
     }
-  } catch (err) {
-    console.error("Failed to refresh subscription", err);
-  }
-};
+  };
 
   const value = {
     user,

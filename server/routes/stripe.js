@@ -1,5 +1,5 @@
 // server/routes/stripe.js
-
+require("dotenv").config();
 const express = require("express");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const fs = require("fs-extra");
@@ -13,7 +13,28 @@ const router = express.Router();
 const DB_PATH = path.join(__dirname, "..", "db.json");
 
 // Secret for JWT signing
-const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_here"; // Set in .env!
+const JWT_SECRET = process.env.JWT_SECRET;
+
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  console.log("🪪 Raw token received:", JSON.stringify(token)); // This will show "null" if missing
+
+  if (!token || token === "null" || token === "undefined") {
+    console.log("❌ Invalid token value");
+    return res.sendStatus(401);
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      console.log("❌ JWT error:", err.message);
+      return res.sendStatus(403);
+    }
+    req.user = user;
+    next();
+  });
+};
 
 // Create Checkout Session
 router.post("/create-checkout-session", async (req, res) => {
@@ -171,6 +192,102 @@ router.post("/login", async (req, res) => {
   });
 });
 
+// Update user profile
+router.patch("/user/update", authenticateToken, async (req, res) => {
+  const { name, email } = req.body;
+  const userId = req.user.id; // from JWT
+
+  if (!name || !email) {
+    return res.status(400).json({ error: "Name and email are required" });
+  }
+
+  // Basic email format check
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: "Invalid email format" });
+  }
+
+  try {
+    const db = await getDB();
+    const user = db.users[userId];
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Update
+    user.name = name;
+    user.email = email;
+
+    // Also update the key if email changed (⚠️ your current ID = email.split("@")[0])
+    // For now, we assume email local part doesn't change — or you'll break the ID!
+    // (In real app: use UUIDs, not email-derived IDs)
+
+    await saveDB(db);
+
+    res.json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+      },
+      message: "Profile updated successfully",
+    });
+  } catch (err) {
+    console.error("Update error:", err);
+    res.status(500).json({ error: "Failed to update profile" });
+  }
+});
+
+// ✅ Verify checkout session (used by frontend SuccessPage)
+router.get("/verify-session/:id", async (req, res) => {
+  try {
+    const session = await stripe.checkout.sessions.retrieve(req.params.id);
+
+    if (!session || session.payment_status !== "paid") {
+      return res.json({ success: false });
+    }
+
+    const customerEmail = session.customer_details.email;
+    const plan = session.metadata.plan;
+    const subscriptionId = session.subscription;
+
+    // Same logic as webhook — ensure user subscription is activated
+    const days = { Monthly: 30, Yearly: 365 }[plan] || 30;
+    const expiresAt = new Date(
+      Date.now() + days * 24 * 60 * 60 * 1000
+    ).toISOString();
+
+    const db = await getDB();
+    const userId = customerEmail.split("@")[0];
+
+    if (!db.users[userId]) {
+      console.warn(`⚠️ No user found for ${customerEmail}`);
+      return res.status(404).json({ success: false, error: "User not found" });
+    }
+
+    db.users[userId] = {
+      ...db.users[userId],
+      subscription: {
+        isActive: true,
+        plan,
+        daysRemaining: days,
+        expiresAt,
+        stripeSubscriptionId: subscriptionId,
+      },
+    };
+
+    await saveDB(db);
+
+    console.log(`✅ Verified and activated subscription for ${customerEmail}`);
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Error verifying session:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Webhook to handle successful payment
 router.post(
   "/webhook",
@@ -227,59 +344,6 @@ router.post(
     }
 
     res.json({ received: true });
-
-    // ✅ Verify checkout session (used by frontend SuccessPage)
-    router.get("/verify-session/:id", async (req, res) => {
-      try {
-        const session = await stripe.checkout.sessions.retrieve(req.params.id);
-
-        if (!session || session.payment_status !== "paid") {
-          return res.json({ success: false });
-        }
-
-        const customerEmail = session.customer_details.email;
-        const plan = session.metadata.plan;
-        const subscriptionId = session.subscription;
-
-        // Same logic as webhook — ensure user subscription is activated
-        const days = { Monthly: 30, Yearly: 365 }[plan] || 30;
-        const expiresAt = new Date(
-          Date.now() + days * 24 * 60 * 60 * 1000
-        ).toISOString();
-
-        const db = await getDB();
-        const userId = customerEmail.split("@")[0];
-
-        if (!db.users[userId]) {
-          console.warn(`⚠️ No user found for ${customerEmail}`);
-          return res
-            .status(404)
-            .json({ success: false, error: "User not found" });
-        }
-
-        db.users[userId] = {
-          ...db.users[userId],
-          subscription: {
-            isActive: true,
-            plan,
-            daysRemaining: days,
-            expiresAt,
-            stripeSubscriptionId: subscriptionId,
-          },
-        };
-
-        await saveDB(db);
-
-        console.log(
-          `✅ Verified and activated subscription for ${customerEmail}`
-        );
-
-        return res.json({ success: true });
-      } catch (err) {
-        console.error("Error verifying session:", err.message);
-        res.status(500).json({ success: false, error: err.message });
-      }
-    });
   }
 );
 

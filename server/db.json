@@ -6,11 +6,24 @@
       "name": "Hanlin Bai",
       "password": "123123",
       "subscription": {
-        "isActive": false,
-        "plan": null,
-        "daysRemaining": 0,
-        "expiresAt": null,
-        "stripeSubscriptionId": null
+        "isActive": true,
+        "plan": "Monthly",
+        "daysRemaining": 30,
+        "expiresAt": "2025-11-20T20:40:54.191Z",
+        "stripeSubscriptionId": "sub_1SKmLiGsGX4c72uBJwHbgNoV"
+      }
+    },
+    "hanlinbai": {
+      "id": "hanlinbai",
+      "email": "hanlinbai@hotmail.com",
+      "name": "Hanlin Bai",
+      "password": "123123",
+      "subscription": {
+        "isActive": true,
+        "plan": "Yearly",
+        "daysRemaining": 365,
+        "expiresAt": "2026-10-21T21:15:53.174Z",
+        "stripeSubscriptionId": "sub_1SKmuAGsGX4c72uBsWdsIhQJ"
       }
     }
   }

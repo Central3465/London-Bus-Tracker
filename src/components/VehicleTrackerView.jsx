@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo} from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Bus,
   Navigation,
@@ -192,12 +192,20 @@ const VehicleTrackerView = ({
           const imageUrl = unsplashData.results[0].urls.small;
           setBusImage(imageUrl);
         } else {
-          // Fallback image
-          setBusImage(
-            `https://placehold.co/600x400?text=${encodeURIComponent(
-              vehicleType?.name || vehicle.reg
-            )}`
+          let imageUrl = null;
+          imageUrl = await fetchFlickrImage(
+            vehicleType?.name || vehicle.reg || vehicleId
           );
+          if (imageUrl) {
+            setBusImage(imageUrl);
+          } else {
+            // Final fallback
+            setBusImage(
+              `https://placehold.co/600x400?text=${encodeURIComponent(
+                vehicleId
+              )}`
+            );
+          }
         }
       } else {
         // If no vehicle found by registration, try by fleet number
@@ -305,7 +313,7 @@ const VehicleTrackerView = ({
 
         try {
           const res = await fetch(
-            `https://api.tfl.gov.uk/StopPoint/${arrival.naptanId}`
+            `https://api.tfl.gov.uk/StopPoint/  ${arrival.naptanId}`
           );
           if (!res.ok) return arrival;
 
@@ -324,6 +332,33 @@ const VehicleTrackerView = ({
         }
       })
     );
+  };
+
+  const fetchFlickrImage = async (query) => {
+    try {
+      // Use text search in public feed
+      const url = `https://www.flickr.com/services/feeds/photos_public.gne?text=${encodeURIComponent(
+        query + " bus London"
+      )}&format=json&nojsoncallback=1`;
+
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(
+        url
+      )}`;
+      // ⚠️ Note: allorigins is a free CORS proxy — for production, use your own proxy or backend
+
+      const response = await fetch(proxyUrl);
+      const data = await response.json();
+
+      if (data.items && data.items.length > 0) {
+        const photo = data.items[0];
+        // Construct medium-sized image URL from Flickr photo ID
+        // Format:https://live.staticflickr.com/  {server}/{id}_{secret}_m.jpg
+        return `https://live.staticflickr.com/  ${photo.server}/${photo.id}_${photo.secret}_m.jpg`;
+      }
+    } catch (err) {
+      console.warn("Flickr image fetch failed:", err);
+    }
+    return null;
   };
 
   const handleFetchVehicle = async () => {
