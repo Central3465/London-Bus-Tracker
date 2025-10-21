@@ -9,11 +9,13 @@ const { getDB } = require("./utils/db");
 const app = express();
 
 // CORS for JWT (no credentials needed)
-app.use(
-  cors({
-    origin: "http://localhost:5173",
-  })
-);
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'https://london-bus-tracker.vercel.app'
+  ],
+  credentials: true
+}));
 app.use(express.json());
 
 // JWT middleware

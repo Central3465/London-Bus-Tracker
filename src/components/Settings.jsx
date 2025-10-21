@@ -107,7 +107,7 @@ const AccountSection = ({ currentThemeClasses, user, navigate }) => {
         navigate("/signin");
         return;
       }
-      const res = await fetch("http://localhost:5000/api/user/update", {
+      const res = await fetch("http://${import.meta.env.VITE_API_BASE}/api/user/update", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

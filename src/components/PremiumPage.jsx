@@ -76,7 +76,7 @@ const PremiumPage = () => {
 
     try {
       const response = await fetch(
-        "http://localhost:5000/api/create-checkout-session",
+        "http://${import.meta.env.VITE_API_BASE}/api/create-checkout-session",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -15,7 +15,7 @@ const SuccessPage = () => {
 
       try {
         // ✅ Verify payment with backend
-        const res = await fetch(`http://localhost:5000/api/verify-session/${sessionId}`);
+        const res = await fetch(`http://${import.meta.env.VITE_API_BASE}/api/verify?session_id=${sessionId}`);
         const data = await res.json();
 
         if (data.success) {
