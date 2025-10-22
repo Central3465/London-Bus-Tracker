@@ -29,10 +29,17 @@ import SettingsPage from "./components/Settings";
 import NotFoundPage from "./components/NotFoundPage";
 import SuccessPage from "./components/SuccessPage";
 import CancelPage from "./components/CancelPage";
-import SignInPage from './components/SignInPage';
-import SignUpPage from './components/SignUpPage';
+import SignInPage from "./components/SignInPage";
+import SignUpPage from "./components/SignUpPage";
 import Navigation1 from "./components/Navigation";
 import { useUser } from "./contexts/UserContexts";
+
+import DefaultBusIcon from "./assets/Bus.png";
+import RoutemasterIcon from "./assets/icon-routemaster.png";
+import NightBusIcon from "./assets/icon-nightbus.png";
+import ElectricBusIcon from "./assets/electricbus.png";
+import HalloweenBusIcon from "./assets/HalloweenBus.png";
+import ChristmasBusIcon from "./assets/Christmasbus.png";
 
 import {
   fetchNearestStops,
@@ -74,6 +81,7 @@ const App = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [theme, setTheme] = useState("light"); // New theme state
   const { subscription } = useUser();
+  const hasPlus = subscription?.isActive;
   // New state for the notification banner
   const [showInfoBanner, setShowInfoBanner] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
@@ -86,6 +94,25 @@ const App = () => {
 
   const [fromSuggestions, setFromSuggestions] = useState([]);
   const [toSuggestions, setToSuggestions] = useState([]);
+
+  const appIconMap = {
+    default: DefaultBusIcon,
+    routemaster: RoutemasterIcon,
+    nightbus: NightBusIcon,
+    electric: ElectricBusIcon,
+    halloween: HalloweenBusIcon,
+    christmas: ChristmasBusIcon,
+  };
+
+  const [currentAppIcon, setCurrentAppIcon] = useState("default");
+
+  useEffect(() => {
+    const savedIcon = localStorage.getItem("appIcon") || "default";
+    // Only allow valid icon IDs
+    if (appIconMap[savedIcon]) {
+      setCurrentAppIcon(savedIcon);
+    }
+  }, []);
 
   const tabs = [
     { id: "live", label: "Live Buses", icon: Bus, path: "/live" },
@@ -245,6 +272,54 @@ const App = () => {
       return { error: err.message, data: null };
     }
   };
+
+  useEffect(() => {
+    if (!hasPlus) return;
+    let interval;
+
+    const checkForDisruptions = async () => {
+      const alertsEnabled =
+        localStorage.getItem("disruptionAlertsEnabled") === "true";
+      if (!alertsEnabled || Notification.permission !== "granted") return;
+
+      try {
+        // Fetch disruptions (reuse your existing logic)
+        const modes = "bus"; // or expand based on user's recent routes
+        const res = await fetch(
+          `https://api.tfl.gov.uk/Line/Mode/${modes}/Status?app_id=${TFL_APP_ID}&app_key=${TFL_APP_KEY}`
+        );
+        const data = await res.json();
+
+        // Get user's favorite stops (from localStorage or context)
+        const favorites = JSON.parse(
+          localStorage.getItem("favoriteStops") || "[]"
+        );
+        const favoriteLines = new Set(); // Extract line IDs from favorites if possible
+
+        // For demo: just check if ANY bus line has severe disruption
+        const hasSevere = data.some((line) =>
+          line.lineStatuses?.[0]?.statusSeverityDescription
+            ?.toLowerCase()
+            .includes("severe")
+        );
+
+        if (hasSevere) {
+          new Notification("⚠️ Service Disruption", {
+            body: "One or more bus lines are experiencing severe delays.",
+            icon: "/icons/icon-default.png", // your app icon
+          });
+        }
+      } catch (err) {
+        console.warn("Failed to check disruptions for alerts", err);
+      }
+    };
+
+    // Run every 5 minutes
+    interval = setInterval(checkForDisruptions, 5 * 60 * 1000);
+    checkForDisruptions(); // run once on load
+
+    return () => clearInterval(interval);
+  }, [hasPlus]);
 
   const getCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -640,9 +715,12 @@ const App = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
-                <Bus className="w-6 h-6 text-white" />
-              </div>
+              <img
+                src={appIconMap[currentAppIcon]}
+                alt="App icon"
+                className="w-14 h-14 rounded-lg"
+              />
+
               <div>
                 <h1
                   className={`text-xl font-bold ${getTextColor(

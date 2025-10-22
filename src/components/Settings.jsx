@@ -12,6 +12,9 @@ import {
   CreditCard,
   Shield,
   Star,
+  Check,
+  Info,
+  Ban,
 } from "lucide-react";
 import { useUser } from "../contexts/UserContexts";
 import { useNavigate } from "react-router-dom";
@@ -58,8 +61,7 @@ const Sidebar = ({
         return (
           <button
             key={item.id}
-            onClick={() => !isLocked && setActiveSection(item.id)}
-            disabled={isLocked}
+            onClick={() => setActiveSection(item.id)}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
               activeSection === item.id
                 ? "bg-indigo-100 text-indigo-700 font-medium"
@@ -93,7 +95,7 @@ const LockedSection = ({ feature, navigate }) => (
   </div>
 );
 
-const AccountSection = ({ currentThemeClasses, user, navigate }) => {
+const AccountSection = ({ currentThemeClasses, user, navigate, onLogout }) => {
   const [name, setName] = useState(user?.name || "");
   const [email, setEmail] = useState(user?.email || "");
   const [isEditing, setIsEditing] = useState(false);
@@ -107,14 +109,17 @@ const AccountSection = ({ currentThemeClasses, user, navigate }) => {
         navigate("/signin");
         return;
       }
-      const res = await fetch("http://${import.meta.env.VITE_API_BASE}/api/user/update", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify({ name, email }),
-      });
+      const res = await fetch(
+        "http://${import.meta.env.VITE_API_BASE}/api/user/update",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({ name, email }),
+        }
+      );
 
       const data = await res.json();
       localStorage.setItem("token", data.token); // 👈 THIS IS CRITICAL
@@ -133,9 +138,22 @@ const AccountSection = ({ currentThemeClasses, user, navigate }) => {
   if (!user) {
     return (
       <div
-        className={`${currentThemeClasses.bg} rounded-xl p-6 border ${currentThemeClasses.border}`}
+        className={`${currentThemeClasses.bg} rounded-xl p-6 border ${currentThemeClasses.border} flex flex-col items-center justify-center text-center min-h-[200px]`}
       >
-        <p className={currentThemeClasses.text}>Loading...</p>
+        <User className="w-10 h-10 text-gray-400 mb-3" />
+        <p className={`text-lg font-medium ${currentThemeClasses.text} mb-2`}>
+          You're not logged in
+        </p>
+        <p className={`${currentThemeClasses.textSecondary} mb-4 max-w-md`}>
+          Please sign in to access your account settings and manage your
+          profile.
+        </p>
+        <button
+          onClick={() => navigate("/signin")}
+          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+        >
+          Sign In
+        </button>
       </div>
     );
   }
@@ -220,10 +238,7 @@ const AccountSection = ({ currentThemeClasses, user, navigate }) => {
         </div>
         <hr className={`my-6 ${currentThemeClasses.border}`} />
         <button
-          onClick={() => {
-            localStorage.removeItem("token");
-            navigate("/signin");
-          }}
+          onClick={onLogout}
           className={`text-sm text-red-600 hover:text-red-800 font-medium`}
         >
           Sign out
@@ -335,6 +350,9 @@ const AppearanceSection = ({
   selectedTheme,
   onThemeSelect,
   navigate,
+  selectedIcon, // 👈
+  onIconSelect,
+  refreshIcon,
 }) => {
   const themes = [
     {
@@ -371,6 +389,50 @@ const AppearanceSection = ({
     },
   ];
 
+  const customIcons = [
+    {
+      id: "default",
+      name: "Default",
+      preview: "/src/assets/Bus.png",
+      description: "Your classic blue bus",
+    },
+    {
+      id: "routemaster",
+      name: "Routemaster Red",
+      preview: "/src/assets/icon-routemaster.png",
+      description: "Iconic London red",
+    },
+    {
+      id: "nightbus",
+      name: "Night Bus Black",
+      preview: "/src/assets/icon-nightbus.png",
+      description: "Glow-in-the-dark vibes",
+    },
+    {
+      id: "electric",
+      name: "Electric Green",
+      preview: "/src/assets/electricbus.png",
+      description: "Eco-friendly & fresh",
+    },
+    {
+      id: "halloween",
+      name: "Halloween Special",
+      preview: "/src/assets/HalloweenBus.png", // 👈 make sure this file exists
+      description: "Spooky seasonal icon",
+      isSpecial: true,
+      expires: "1/11/2025",
+    },
+    {
+      id: "christmas",
+      name: "Christmas Special",
+      preview: "/src/assets/Christmasbus.png", // 👈 Make sure this file exists
+      description: "Festive holiday icon",
+      isSpecial: true,
+      startsOn: "1/12/2025", // 👈 Activation date
+      isDisabled: new Date() < new Date("2025-12-01"), // 👈 Disable if today is before Dec 1, 2025
+    },
+  ];
+
   const BusIcon = ({ theme }) => {
     const color =
       theme === "dark"
@@ -402,52 +464,101 @@ const AppearanceSection = ({
         >
           Appearance
           <span className="text-xs font-medium px-2 py-1 bg-purple-100 text-purple-800 rounded-full">
-            LBT Plus Only
+            LBT Plus
           </span>
           <span className="text-xs font-medium px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full">
             Beta
           </span>
         </h3>
-        <div
-          className={`${
-            currentTheme === "dark"
-              ? "bg-gray-800/50 border-gray-700"
-              : currentTheme === "high-contrast"
-              ? "bg-black border-yellow-500"
-              : "bg-blue-50 border-blue-200"
-          } rounded-xl p-4 mb-6 border backdrop-blur-sm`}
-        >
-          <div className="flex items-start space-x-3">
-            <AlertTriangle
-              className={`flex-shrink-0 mt-0.5 w-5 h-5 ${
-                currentTheme === "high-contrast"
-                  ? "text-yellow-400"
-                  : "text-blue-500"
-              }`}
-            />
+        <p className={`mb-6 ${currentThemeClasses.textSecondary}`}>
+          Customize the app icon
+        </p>
+        <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div className="flex items-center justify-between">
             <div>
-              <p
-                className={`text-sm ${
-                  currentTheme === "high-contrast"
-                    ? "text-yellow-300"
-                    : "text-blue-800"
-                }`}
-              >
-                All themes except Light Mode are in beta.
-              </p>
-              <p
-                className={`text-xs mt-1 ${
-                  currentTheme === "high-contrast"
-                    ? "text-yellow-400"
-                    : "text-blue-700"
-                }`}
-              >
-                You might spot small visual bugs. If tiny imperfections make you
-                angry… stick with Light Mode! 😅
+              <h4 className="font-medium text-yellow-800">Icon Updated!</h4>
+              <p className="text-sm text-yellow-700 mt-1">
+                Click below to refresh the app icon in the header.
               </p>
             </div>
+            <button
+              onClick={refreshIcon}
+              className="px-3 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors text-sm font-medium"
+            >
+              🔄 Refresh Header Icon
+            </button>
           </div>
         </div>
+        <br></br>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {customIcons.map((icon) => {
+            const isSelected = selectedIcon === icon.id;
+            const isSpecial = icon.isSpecial;
+            const isDisabled = icon.isDisabled;
+
+            return (
+              <>
+                <div
+                  key={icon.id}
+                  onClick={() => !isDisabled && onIconSelect(icon.id)}
+                  className={`relative rounded-xl p-4 cursor-pointer transition-all duration-200 border-2 ${
+                    isDisabled
+                      ? "opacity-60 cursor-not-allowed bg-gray-50"
+                      : isSelected
+                      ? "border-blue-500 ring-2 ring-blue-500/20"
+                      : `${currentThemeClasses.border} hover:${currentThemeClasses.hoverBorder}`
+                  } ${isSpecial ? "ring-2 ring-green-400 bg-green-50" : ""}`}
+                >
+                  <img
+                    src={icon.preview}
+                    alt={icon.name}
+                    className={`w-12 h-12 mx-auto mb-2 ${
+                      isDisabled ? "grayscale" : ""
+                    }`}
+                  />
+                  <p
+                    className={`text-sm font-medium text-center ${
+                      isSpecial
+                        ? isDisabled
+                          ? "text-gray-500"
+                          : "text-green-800 font-bold"
+                        : currentThemeClasses.text
+                    }`}
+                  >
+                    {icon.name}
+                  </p>
+                  {isSpecial && (
+                    <div className="mt-1 text-xs font-medium text-center">
+                      {isDisabled ? (
+                        <span className="text-gray-500">
+                          Starts: {icon.startsOn}
+                        </span>
+                      ) : (
+                        <>
+                          <span className="text-green-600">Available now!</span>
+                          <span className="text-green-600">
+                            <br></br>Expires: {icon.expires}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {isSelected && !isDisabled && (
+                    <div className="absolute top-1 right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                      <Check className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                  {isDisabled && (
+                    <div className="absolute inset-0 bg-black/10 rounded-xl flex items-center justify-center">
+                      <Ban className="w-5 h-5 text-gray-500" />
+                    </div>
+                  )}
+                </div>
+              </>
+            );
+          })}
+        </div>
+        <br></br>
         <p className={`mb-6 ${currentThemeClasses.textSecondary}`}>
           Customize the look and feel of the app
         </p>
@@ -538,61 +649,6 @@ const AppearanceSection = ({
           </button>
         </div>
       )}
-      <div
-        className={`${
-          currentTheme === "dark"
-            ? "bg-gray-800 border-gray-700"
-            : currentTheme === "high-contrast"
-            ? "bg-black border-yellow-500"
-            : "bg-blue-50 border-blue-100"
-        } rounded-xl p-5 border mt-6`}
-      >
-        <h3
-          className={`font-medium ${
-            currentTheme === "high-contrast"
-              ? "text-yellow-300"
-              : "text-blue-900"
-          } mb-2`}
-        >
-          Theme Preview
-        </h3>
-        <div className="flex items-center space-x-4">
-          <div
-            className={`w-16 h-16 rounded-lg ${
-              themes.find((t) => t.id === selectedTheme)?.preview
-            } flex items-center justify-center border ${
-              selectedTheme === "high-contrast"
-                ? "border-yellow-500"
-                : "border-gray-300"
-            }`}
-          >
-            <BusIcon theme={selectedTheme} />
-          </div>
-          <div>
-            <p
-              className={`text-sm ${
-                currentTheme === "high-contrast"
-                  ? "text-yellow-300"
-                  : "text-blue-800"
-              }`}
-            >
-              Current selection:{" "}
-              <span className="font-medium">
-                {themes.find((t) => t.id === selectedTheme)?.name}
-              </span>
-            </p>
-            <p
-              className={`text-xs ${
-                currentTheme === "high-contrast"
-                  ? "text-yellow-400"
-                  : "text-blue-700"
-              } mt-1`}
-            >
-              Changes apply immediately
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
@@ -654,14 +710,150 @@ const SubscriptionSection = ({ subscription, currentThemeClasses }) => (
 
 const SettingsPage = ({ currentTheme, onThemeChange }) => {
   const navigate = useNavigate();
+  const { logout } = useUser();
   const { user, subscription } = useUser();
   const hasPlus = subscription?.isActive;
   const [selectedTheme, setSelectedTheme] = useState(currentTheme);
+  const [selectedIcon, setSelectedIcon] = useState("default");
   const [activeSection, setActiveSection] = useState("account");
+
+  useEffect(() => {
+    const savedIcon = localStorage.getItem("appIcon") || "default";
+    setSelectedIcon(savedIcon);
+    applyIcon(savedIcon); // Apply it immediately
+  }, []);
 
   const handleThemeSelect = (themeId) => {
     setSelectedTheme(themeId);
     onThemeChange(themeId);
+    saveIconPreference(selectedIcon);
+  };
+
+  const handleIconSelect = (iconId) => {
+    setSelectedIcon(iconId);
+    saveIconPreference(iconId);
+    // 👇 This is the magic: dynamically change the <link> tag for favicon/apple-touch-icon
+    applyIcon(iconId);
+  };
+
+  const refreshIcon = () => {
+    // Force App.jsx to re-read localStorage by triggering a state update
+    window.dispatchEvent(new Event("storage"));
+  };
+
+  const applyIcon = (iconId) => {
+    const iconPath = `/icons/icon-${iconId}.png`;
+
+    // Update favicon
+    const favicon = document.querySelector('link[rel="icon"]');
+    if (favicon) favicon.href = iconPath;
+
+    // Update apple-touch-icon (for iOS home screen)
+    const appleTouchIcon = document.querySelector(
+      'link[rel="apple-touch-icon"]'
+    );
+    if (appleTouchIcon) appleTouchIcon.href = iconPath;
+
+    // Update manifest (if you have one)
+    const manifestLink = document.querySelector('link[rel="manifest"]');
+    if (manifestLink) {
+      fetch(manifestLink.href)
+        .then((res) => res.json())
+        .then((manifest) => {
+          manifest.icons.forEach((icon) => {
+            icon.src = iconPath; // ⚠️ This is simplified—you might need to replace the whole manifest
+          });
+          // Replacing manifest is complex—usually you’d generate it server-side.
+          // For now, just updating favicon/apple-touch-icon is enough for most users.
+        });
+    }
+  };
+
+  const DisruptionAlertsSection = ({ currentThemeClasses }) => {
+    const [isEnabled, setIsEnabled] = useState(() => {
+      return localStorage.getItem("disruptionAlertsEnabled") === "true";
+    });
+    const [permission, setPermission] = useState("default"); // "granted", "denied", "default"
+
+    useEffect(() => {
+      if ("Notification" in window) {
+        setPermission(Notification.permission);
+      }
+    }, []);
+
+    const toggleAlerts = async () => {
+      if (!isEnabled) {
+        // Request permission
+        const result = await Notification.requestPermission();
+        setPermission(result);
+        if (result !== "granted") {
+          alert(
+            "Notifications blocked. Enable in browser settings to get alerts."
+          );
+          return;
+        }
+      }
+
+      const newState = !isEnabled;
+      setIsEnabled(newState);
+      localStorage.setItem("disruptionAlertsEnabled", String(newState));
+    };
+
+    return (
+      <div
+        className={`${currentThemeClasses.bg} rounded-xl p-6 border ${currentThemeClasses.border}`}
+      >
+        <h3
+          className={`text-lg font-semibold ${currentThemeClasses.text} mb-4 flex items-center gap-2`}
+        >
+          <AlertTriangle className="w-5 h-5 text-yellow-600" />
+          Service Disruption Alerts
+          <span className="text-xs font-medium px-2 py-1 bg-purple-100 text-purple-800 rounded-full">
+            LBT Plus
+          </span>
+        </h3>
+        <p className={`${currentThemeClasses.textSecondary} mb-6`}>
+          Get browser notifications when your favorite bus routes or nearby
+          lines have delays or disruptions.
+        </p>
+
+        <div className="flex items-center justify-between">
+          <span className={`${currentThemeClasses.text}`}>
+            Enable real-time alerts
+          </span>
+          <button
+            onClick={toggleAlerts}
+            disabled={permission === "denied"}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              isEnabled ? "bg-blue-600" : "bg-gray-300"
+            } ${
+              permission === "denied" ? "opacity-50 cursor-not-allowed" : ""
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                isEnabled ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
+
+        {permission === "denied" && (
+          <p className="mt-3 text-sm text-red-600">
+            ⚠️ Notifications are blocked. Please enable them in your browser
+            settings.
+          </p>
+        )}
+
+        <div className="mt-6 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <p className="text-sm text-yellow-800">
+            <Info className="w-4 h-4 inline mr-1" />
+            Alerts are based on your <strong>favorited stops</strong> and{" "}
+            <strong>recent journeys</strong>.
+          </p>
+        </div>
+      </div>
+    );
   };
 
   const getThemeClasses = (theme) => {
@@ -708,6 +900,12 @@ const SettingsPage = ({ currentTheme, onThemeChange }) => {
     { id: "account", label: "Account", icon: User },
     { id: "appearance", label: "Appearance", icon: Palette, plusOnly: true },
     {
+      id: "disruptions",
+      label: "Service Alerts",
+      icon: AlertTriangle,
+      plusOnly: true,
+    },
+    {
       id: "subscription",
       label: "Subscription",
       icon: CreditCard,
@@ -715,6 +913,12 @@ const SettingsPage = ({ currentTheme, onThemeChange }) => {
     },
     { id: "privacy", label: "Privacy & Data", icon: Shield },
   ];
+
+  const saveIconPreference = (iconId) => {
+    localStorage.setItem("appIcon", iconId);
+    // Optional: Send to backend if you want to sync across devices
+    // fetch("/api/user/update", { method: "PATCH", body: JSON.stringify({ appIcon: iconId }) });
+  };
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
@@ -734,6 +938,10 @@ const SettingsPage = ({ currentTheme, onThemeChange }) => {
               currentThemeClasses={currentThemeClasses}
               user={user}
               navigate={navigate}
+              onLogout={() => {
+                logout(); // 👈 clears context + localStorage
+                navigate("/signin");
+              }}
             />
           )}
           {activeSection === "appearance" && (
@@ -743,9 +951,21 @@ const SettingsPage = ({ currentTheme, onThemeChange }) => {
               currentThemeClasses={currentThemeClasses}
               selectedTheme={selectedTheme}
               onThemeSelect={handleThemeSelect}
+              selectedIcon={selectedIcon} // 👈 add this
+              onIconSelect={handleIconSelect} // 👈 add this
               navigate={navigate}
             />
           )}
+          {activeSection === "disruptions" && hasPlus ? (
+            <DisruptionAlertsSection
+              currentThemeClasses={currentThemeClasses}
+            />
+          ) : activeSection === "disruptions" ? (
+            <LockedSection
+              feature="Real-Time Disruption Alerts"
+              navigate={navigate}
+            />
+          ) : null}
           {activeSection === "subscription" && hasPlus ? (
             <SubscriptionSection
               subscription={subscription}

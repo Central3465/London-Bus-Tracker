@@ -92,8 +92,7 @@ const ServiceDisruptionsTab = () => {
     fetchDisruptions();
   }, []);
 
-  const normalizeDesc = (desc) =>
-    (desc || "").toString().trim().toLowerCase();
+  const normalizeDesc = (desc) => (desc || "").toString().trim().toLowerCase();
 
   const getSeverityInfo = (status = {}) => {
     const desc = normalizeDesc(status.statusSeverityDescription);
@@ -103,45 +102,126 @@ const ServiceDisruptionsTab = () => {
 
     if (desc) {
       if (desc.includes("good")) {
-        return { key: "good", color: "text-green-600 bg-green-50", Icon: CheckCircle, text: "Good Service" };
+        return {
+          key: "good",
+          color: "text-green-600 bg-green-50",
+          Icon: CheckCircle,
+          text: "Good Service",
+        };
       }
       if (desc.includes("minor")) {
-        return { key: "minor", color: "text-yellow-600 bg-yellow-50", Icon: AlertTriangle, text: "Minor Delays" };
+        return {
+          key: "minor",
+          color: "text-yellow-600 bg-yellow-50",
+          Icon: AlertTriangle,
+          text: "Minor Delays",
+        };
       }
       if (desc.includes("medium")) {
-        return { key: "medium", color: "text-yellow-700 bg-yellow-50", Icon: AlertTriangle, text: "Medium Delays" };
+        return {
+          key: "medium",
+          color: "text-yellow-700 bg-yellow-50",
+          Icon: AlertTriangle,
+          text: "Medium Delays",
+        };
       }
       if (desc.includes("severe") && desc.includes("delays")) {
-        return { key: "severe", color: "text-yellow-800 bg-yellow-50", Icon: AlertTriangle, text: "Severe Delays" };
+        return {
+          key: "severe",
+          color: "text-yellow-800 bg-yellow-50",
+          Icon: AlertTriangle,
+          text: "Severe Delays",
+        };
       }
       if (desc.includes("divert") || desc.includes("diversion")) {
-        return { key: "diverted", color: "text-yellow-600 bg-yellow-50", Icon: AlertTriangle, text: "Diverted" };
+        return {
+          key: "diverted",
+          color: "text-yellow-600 bg-yellow-50",
+          Icon: AlertTriangle,
+          text: "Diverted",
+        };
       }
       if (
-        desc.includes("part") && (desc.includes("suspend") || desc.includes("suspended"))
+        desc.includes("part") &&
+        (desc.includes("suspend") || desc.includes("suspended"))
       ) {
-        return { key: "part-suspended", color: "text-red-600 bg-red-50", Icon: AlertCircle, text: "Part Suspended" };
-      }
-      if (desc.includes("stopped") || desc.includes("closed") || desc.includes("suspended")) {
         return {
-          key: desc.includes("planned") || desc.includes("closure") ? "planned" : "disrupted",
+          key: "part-suspended",
           color: "text-red-600 bg-red-50",
           Icon: AlertCircle,
-          text: desc.includes("planned") || desc.includes("closure") ? "Planned Closure" : "Service Disrupted",
+          text: "Part Suspended",
+        };
+      }
+      if (
+        desc.includes("stopped") ||
+        desc.includes("closed") ||
+        desc.includes("suspended")
+      ) {
+        return {
+          key:
+            desc.includes("planned") || desc.includes("closure")
+              ? "planned"
+              : "disrupted",
+          color: "text-red-600 bg-red-50",
+          Icon: AlertCircle,
+          text:
+            desc.includes("planned") || desc.includes("closure")
+              ? "Planned Closure"
+              : "Service Disrupted",
         };
       }
       if (desc.includes("special")) {
-        return { key: "special", color: "text-gray-700 bg-gray-50", Icon: Info, text: status.statusSeverityDescription || "Special Service" };
+        return {
+          key: "special",
+          color: "text-gray-700 bg-gray-50",
+          Icon: Info,
+          text: status.statusSeverityDescription || "Special Service",
+        };
       }
-      return { key: "other", color: "text-gray-600 bg-gray-50", Icon: Info, text: status.statusSeverityDescription || "Service Notice" };
+      return {
+        key: "other",
+        color: "text-gray-600 bg-gray-50",
+        Icon: Info,
+        text: status.statusSeverityDescription || "Service Notice",
+      };
     }
 
     switch (numeric) {
-      case 10: return { key: "good", color: "text-green-600 bg-green-50", Icon: CheckCircle, text: "Good Service" };
-      case 0: return { key: "special", color: "text-gray-700 bg-gray-50", Icon: Info, text: "Special Service" };
-      case 1: return { key: "minor", color: "text-yellow-600 bg-yellow-50", Icon: AlertTriangle, text: "Minor Delays" };
-      case 2: return { key: "medium", color: "text-yellow-700 bg-yellow-50", Icon: AlertTriangle, text: "Medium Delays" };
-      case 3: return { key: "severe", color: "text-yellow-800 bg-yellow-50", Icon: AlertTriangle, text: "Severe Delays" };
+      case 10:
+        return {
+          key: "good",
+          color: "text-green-600 bg-green-50",
+          Icon: CheckCircle,
+          text: "Good Service",
+        };
+      case 0:
+        return {
+          key: "special",
+          color: "text-gray-700 bg-gray-50",
+          Icon: Info,
+          text: "Special Service",
+        };
+      case 1:
+        return {
+          key: "minor",
+          color: "text-yellow-600 bg-yellow-50",
+          Icon: AlertTriangle,
+          text: "Minor Delays",
+        };
+      case 2:
+        return {
+          key: "medium",
+          color: "text-yellow-700 bg-yellow-50",
+          Icon: AlertTriangle,
+          text: "Medium Delays",
+        };
+      case 3:
+        return {
+          key: "severe",
+          color: "text-yellow-800 bg-yellow-50",
+          Icon: AlertTriangle,
+          text: "Severe Delays",
+        };
       case 4:
       case 5:
       case 6:
@@ -149,27 +229,38 @@ const ServiceDisruptionsTab = () => {
       case 12:
       case 13:
       case 14:
-        return { key: "disrupted", color: "text-red-600 bg-red-50", Icon: AlertCircle, text: "Service Disrupted" };
+        return {
+          key: "disrupted",
+          color: "text-red-600 bg-red-50",
+          Icon: AlertCircle,
+          text: "Service Disrupted",
+        };
       default:
-        return { key: "other", color: "text-gray-600 bg-gray-50", Icon: Info, text: "Service Notice" };
+        return {
+          key: "other",
+          color: "text-gray-600 bg-gray-50",
+          Icon: Info,
+          text: "Service Notice",
+        };
     }
   };
 
-  const filteredDisruptions = disruptions
-    .filter((d) => {
-      // Mode filter
-      if (selectedMode !== "all" && d.mode !== selectedMode) return false;
+  const filteredDisruptions = disruptions.filter((d) => {
+    // Mode filter
+    if (selectedMode !== "all" && d.mode !== selectedMode) return false;
 
-      // Search filter
-      if (searchTerm && !d.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    // Search filter
+    if (searchTerm && !d.name.toLowerCase().includes(searchTerm.toLowerCase()))
+      return false;
 
-      // Severity filter
-      const status = d.lineStatuses?.[0] || {};
-      const severityKey = getSeverityInfo(status).key;
-      if (selectedSeverity !== "all" && severityKey !== selectedSeverity) return false;
+    // Severity filter
+    const status = d.lineStatuses?.[0] || {};
+    const severityKey = getSeverityInfo(status).key;
+    if (selectedSeverity !== "all" && severityKey !== selectedSeverity)
+      return false;
 
-      return true;
-    });
+    return true;
+  });
 
   const modes = ["all", ...Object.keys(modeConfig)];
 
@@ -207,6 +298,20 @@ const ServiceDisruptionsTab = () => {
             <span>Last updated: {lastUpdated.toLocaleTimeString()}</span>
           </div>
         )}
+      </div>
+
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+        <div className="flex items-start space-x-3">
+          <InfoIcon />
+          <div>
+            <h4 className="font-medium text-blue-900">Get Real-Time Alerts</h4>
+            <p className="text-sm text-blue-700 mt-1">
+              <strong>LBT Plus members</strong> can enable browser notifications
+              for live disruption alerts. Go to{" "}
+              <strong>Settings → Service Alerts</strong> to turn them on.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Filters Row */}
@@ -319,8 +424,11 @@ const ServiceDisruptionsTab = () => {
         <div className="space-y-4">
           {filteredDisruptions.map((line) => {
             const status = line.lineStatuses?.[0] || {};
-            const { color: severityColor, Icon: SeverityIcon, text: severityText } =
-              getSeverityInfo(status);
+            const {
+              color: severityColor,
+              Icon: SeverityIcon,
+              text: severityText,
+            } = getSeverityInfo(status);
             const modeInfo = modeConfig[line.mode] || modeConfig.bus;
 
             return (

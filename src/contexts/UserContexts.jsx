@@ -13,6 +13,37 @@ export const UserProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [token, setToken] = useState(localStorage.getItem("token") || null);
 
+  useEffect(
+    () => {
+      const token = localStorage.getItem("token");
+      if (token) {
+        // ✅ Add this line to force a fresh fetch every time the app reloads
+        setUser(null); // 👈 This triggers a re-fetch below
+        setSubscription(null);
+
+        fetch("http://localhost:5000/api/user/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            setUser(data.user);
+            setSubscription(data.subscription);
+          })
+          .catch(() => {
+            localStorage.removeItem("token");
+            setUser(null);
+            setSubscription(null);
+          });
+      } else {
+        setUser(null);
+        setSubscription(null);
+      }
+    },
+    [
+      /* empty dependency array */
+    ]
+  );
+
   // Check if user is already logged in when component mounts
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
@@ -98,10 +129,10 @@ export const UserProvider = ({ children }) => {
   };
 
   const logout = () => {
+    localStorage.removeItem("token");
     setUser(null);
     setSubscription(null);
-    localStorage.removeItem("user");
-    localStorage.removeItem("subscription");
+    // Optional: redirect inside context, or let caller handle it
   };
 
   const updateSubscription = async () => {

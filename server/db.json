@@ -25,6 +25,19 @@
         "expiresAt": "2026-10-21T21:15:53.174Z",
         "stripeSubscriptionId": "sub_1SKmuAGsGX4c72uBsWdsIhQJ"
       }
+    },
+    "andrewhick": {
+      "id": "andrewhick",
+      "email": "andrewhick@gmail.com",
+      "name": "Andrew Hick",
+      "password": "123123",
+      "subscription": {
+        "isActive": false,
+        "plan": null,
+        "daysRemaining": 0,
+        "expiresAt": null,
+        "stripeSubscriptionId": null
+      }
     }
   }
 }
