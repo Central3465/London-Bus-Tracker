@@ -6,6 +6,12 @@ const fs = require("fs-extra");
 const path = require("path");
 const jwt = require("jsonwebtoken"); // ← Add this
 const { getDB, saveDB } = require("../utils/db");
+const {
+  fetchBodsDatasetList,
+  fetchBodsDataset,
+  parseTransXChange,
+} = require("../../src/utils/bodsParser.js");
+const axios = require("axios");
 
 const router = express.Router();
 
@@ -35,6 +41,72 @@ const authenticateToken = (req, res, next) => {
     next();
   });
 };
+
+router.get("/bods/timetable", authenticateToken, async (req, res) => {
+  const { line, date } = req.query;
+
+  if (!line || !date) {
+    return res.status(400).json({ error: "line and date required" });
+  }
+
+  // Optional: restrict to Plus users only
+  const db = await getDB();
+  const user = db.users[req.user.id];
+  if (!user.subscription?.isActive) {
+    return res.status(403).json({ error: "Timetable replay is Plus-only" });
+  }
+
+  try {
+    // Step 1: Get dataset list
+    const list = await fetchBodsDatasetList(5);
+    const dataset = list.results.find(
+      (d) =>
+        d.name.toLowerCase().includes("london") || d.description?.includes(line)
+    );
+    if (!dataset) throw new Error("No London dataset found");
+
+    // Step 2: Get download URL
+    const details = await fetchBodsDataset(dataset.id);
+    const downloadUrl = details.download_url;
+    if (!downloadUrl) throw new Error("No download URL");
+
+    // Step 3: Fetch XML
+    const xmlRes = await axios.get(downloadUrl, { responseType: "text" });
+    const stops = parseTransXChange(xmlRes.data, line);
+
+    // Step 4: Enrich with coordinates from TfL (optional but recommended)
+    const enrichedStops = [];
+    for (const stop of stops) {
+      try {
+        // TfL StopPoint API uses naptanId = stop.id
+        const tflRes = await axios.get(
+          `https://api.tfl.gov.uk/StopPoint/${stop.id}`,
+          {
+            params: {
+              app_id: process.env.TFL_APP_ID,
+              app_key: process.env.TFL_APP_KEY,
+            },
+          }
+        );
+        const tflStop = tflRes.data;
+        enrichedStops.push({
+          ...stop,
+          lat: tflStop.lat,
+          lng: tflStop.lon,
+        });
+      } catch (err) {
+        // Fallback: skip or use centroid
+        console.warn(`⚠️ Could not geocode stop ${stop.id}`);
+        enrichedStops.push({ ...stop, lat: null, lng: null });
+      }
+    }
+
+    res.json({ stops: enrichedStops });
+  } catch (err) {
+    console.error("BODS timetable error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // 🆕 DELETE ACCOUNT ROUTE
 router.delete("/account", authenticateToken, async (req, res) => {

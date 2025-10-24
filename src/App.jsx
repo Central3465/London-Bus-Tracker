@@ -22,6 +22,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { useTheme } from "./contexts/ThemeContext";
 import BusMap from "./BusMap";
 import LiveBusView from "./components/LiveBusView";
+import RouteReplay from "./components/RouteReply";
 import JourneyPlanner from "./components/JourneyPlanner";
 import EnthusiastHub from "./components/EnthusiastHub";
 import VehicleTrackerView from "./components/VehicleTrackerView";
@@ -187,6 +188,12 @@ const App = () => {
       label: "My Fleet",
       icon: Star,
       path: "/fleet",
+    },
+    {
+      id: "route-replay",
+      label: "Route Replay",
+      icon: Clock,
+      path: "/route-replay",
     },
     {
       id: "disruptions",
@@ -782,16 +789,12 @@ const App = () => {
               </div>
             </div>
 
-            {/* --- REPLACE YOUR EXISTING TAB BAR WITH THIS --- */}
             <div className="hidden md:flex space-x-1 bg-white/10 p-1 rounded-xl backdrop-blur-sm">
               {tabs.map((tab) => (
                 <Link
                   key={tab.id}
                   to={tab.path}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${
-                    // We can use `location.pathname === tab.path` to determine active state
-                    // But for simplicity, we'll just use a class based on the current route.
-                    // You might want to create a custom hook or component for this.
+                  className={`flex flex-col items-center justify-center px-3 py-2 rounded-lg font-medium text-xs transition-all min-w-[60px] ${
                     window.location.pathname === tab.path
                       ? "bg-blue-600 text-white shadow-md"
                       : `${getTextColor(
@@ -799,8 +802,12 @@ const App = () => {
                         )} hover:text-gray-900 hover:bg-gray-100/50`
                   }`}
                 >
-                  <tab.icon className="w-4 h-4" />
-                  <span>{tab.label}</span>
+                  <tab.icon className="w-4 h-4 mb-1" />
+                  <span className="hidden lg:block">{tab.label}</span>
+                  <span className="lg:hidden">
+                    {tab.label.split(" ")[0]}
+                  </span>{" "}
+                  {/* e.g., "Journey" → "Journey", "Route Replay" → "Route" */}
                 </Link>
               ))}
             </div>
@@ -977,6 +984,8 @@ const App = () => {
               }
             />
 
+            <Route path="/route-replay" element={<RouteReplay />} />
+
             <Route
               path="/vehicle"
               element={
@@ -992,10 +1001,7 @@ const App = () => {
               }
             />
 
-            <Route
-              path="/fleet"
-              element={<MyFleetTracker></MyFleetTracker>}
-            />
+            <Route path="/fleet" element={<MyFleetTracker></MyFleetTracker>} />
 
             <Route path="/disruptions" element={<ServiceDisruptionsTab />} />
 

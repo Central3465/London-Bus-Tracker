@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.14",
+    "@xmldom/xmldom": "^0.8.11",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.378.0",
     "react": "^18.2.0",
