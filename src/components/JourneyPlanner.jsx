@@ -18,6 +18,7 @@ import {
   ArrowRight,
   Map,
 } from "lucide-react";
+import { useTheme } from "../contexts/ThemeContext";
 
 const JourneyPlanner = ({
   userLocation,
@@ -32,6 +33,8 @@ const JourneyPlanner = ({
   journeyError,
   setJourneyError,
   handlePlanJourney,
+  theme,
+  hasPlus
 }) => {
   const [selectedJourney, setSelectedJourney] = useState(null);
   const [showDetailedView, setShowDetailedView] = useState(false);
@@ -56,6 +59,47 @@ const JourneyPlanner = ({
 
   const fromInputRef = useRef(null);
   const toInputRef = useRef(null);
+
+  const { themeClasses } = useTheme();
+
+  const getTextColor = (baseColor) => {
+    switch (theme) {
+      case "dark":
+        return "text-gray-100";
+      case "high-contrast":
+        return "text-yellow-300";
+      case "minimalist":
+        return "text-gray-800";
+      default:
+        return baseColor || "text-gray-900";
+    }
+  };
+
+  const getBgColor = () => {
+    switch (theme) {
+      case "dark":
+        return "bg-gray-800";
+      case "high-contrast":
+        return "bg-black";
+      case "minimalist":
+        return "bg-white";
+      default:
+        return "bg-white";
+    }
+  };
+
+  const getBorderColor = () => {
+    switch (theme) {
+      case "dark":
+        return "border-gray-700";
+      case "high-contrast":
+        return "border-yellow-500";
+      case "minimalist":
+        return "border-gray-200";
+      default:
+        return "border-gray-200";
+    }
+  };
 
   // Fetch suggestions for autocomplete
   const fetchSuggestions = async (query, type) => {
@@ -104,181 +148,118 @@ const JourneyPlanner = ({
   };
 
   // Enhanced function to fetch journey data from TfL API
-  const fetchJourneyData = async (from, to) => {
+  const fetchJourneyData = async (from, to, userLocation = null) => {
     try {
-      // First, get the stop points for the locations
-      let fromStopId = null;
-      let toStopId = null;
-
-      // Search for from location
-      if (from && from !== "current_location") {
-        const fromRes = await fetch(
-          `https://api.tfl.gov.uk/StopPoint/Search/${encodeURIComponent(
-            from
-          )}?app_key=${import.meta.env.VITE_TFL_APP_KEY}`
-        );
-        if (!fromRes.ok) throw new Error("Failed to find starting location");
-
-        const fromData = await fromRes.json();
-        if (fromData.matches && fromData.matches.length > 0) {
-          fromStopId = fromData.matches[0].id;
-        } else {
-          throw new Error(`No locations found for: ${from}`);
+      // Resolve "current_location" to real coords
+      let fromQuery = from;
+      if (from === "current_location") {
+        if (!userLocation?.lat || !userLocation?.lng) {
+          throw new Error("Current location not available");
         }
+        fromQuery = `${userLocation.lat},${userLocation.lng}`;
       }
 
-      // Search for to location
-      if (to) {
-        const toRes = await fetch(
-          `https://api.tfl.gov.uk/StopPoint/Search/${encodeURIComponent(
-            to
-          )}?app_key=${import.meta.env.VITE_TFL_APP_KEY}`
-        );
-        if (!toRes.ok) throw new Error("Failed to find destination");
+      // Fetch journey plan directly using coords or stop names
+      const url = `https://api.tfl.gov.uk/Journey/JourneyResults/${encodeURIComponent(
+        fromQuery
+      )}/to/${encodeURIComponent(to)}?app_key=${
+        import.meta.env.VITE_TFL_APP_KEY
+      }`;
 
-        const toData = await toRes.json();
-        if (toData.matches && toData.matches.length > 0) {
-          toStopId = toData.matches[0].id;
-        } else {
-          throw new Error(`No locations found for: ${to}`);
-        }
+      const journeyRes = await fetch(url);
+      if (!journeyRes.ok) {
+        const errText = await journeyRes.text();
+        console.error("TfL API error:", errText);
+        throw new Error("No journey found. Try different stops.");
       }
+      const journeyData = await journeyRes.json();
 
-      // If we have stop IDs, get journey plan
-      if (fromStopId && toStopId) {
-        const journeyRes = await fetch(
-          `https://api.tfl.gov.uk/Journey/JourneyResults/${fromStopId}/to/${toStopId}?app_key=${
-            import.meta.env.VITE_TFL_APP_KEY
-          }`
-        );
-
-        if (!journeyRes.ok) throw new Error("Failed to get journey results");
-
-        const journeyData = await journeyRes.json();
-
-        // Process the journey data with better error handling
-        const processedJourneys = [];
-
-        if (journeyData.journeys && journeyData.journeys.length > 0) {
-          journeyData.journeys.forEach((journey, index) => {
-            const legs = [];
-
-            // Process each leg of the journey with better data extraction
-            if (journey.legs && journey.legs.length > 0) {
-              journey.legs.forEach((leg) => {
-                // Extract mode information from multiple possible fields
-                let modeName = "Walking"; // Default to walking
-                if (leg.mode?.name) {
-                  modeName = leg.mode.name;
-                } else if (leg.routeOptions && leg.routeOptions.length > 0) {
-                  modeName = leg.routeOptions[0].mode || "Transport";
-                } else if (leg.modeName) {
-                  modeName = leg.modeName;
+      const processedJourneys = [];
+      if (journeyData.journeys?.length > 0) {
+        journeyData.journeys.forEach((journey, index) => {
+          const legs = [];
+          if (journey.legs?.length > 0) {
+            journey.legs.forEach((leg) => {
+              // Mode
+              const modeName = leg.mode?.name || "Walking";
+              // Route
+              const routeName =
+                leg.routeOptions?.[0]?.name ||
+                leg.line?.name ||
+                leg.routeName ||
+                "";
+              // Locations
+              const fromName =
+                leg.departurePoint?.commonName ||
+                leg.from?.commonName ||
+                leg.from?.name ||
+                "Start";
+              const toName =
+                leg.arrivalPoint?.commonName ||
+                leg.to?.commonName ||
+                leg.to?.name ||
+                "Destination";
+              // Times
+              const departureTime = leg.departureTime || journey.startDateTime;
+              const arrivalTime = leg.arrivalTime || journey.endDateTime;
+              // Duration
+              let calculatedDuration = leg.duration || 0;
+              if (departureTime && arrivalTime) {
+                const dep = new Date(departureTime).getTime();
+                const arr = new Date(arrivalTime).getTime();
+                if (!isNaN(dep) && !isNaN(arr)) {
+                  calculatedDuration = Math.max(
+                    0,
+                    Math.round((arr - dep) / 1000)
+                  );
                 }
-                legs.push(processedLeg);
+              }
 
-                const totalDuration = legs.reduce(
-                  (sum, leg) => sum + leg.duration,
-                  0
-                );
-
-                const processedJourney = {
-                  id: index + 1,
-                  duration: totalDuration,
-                  legs: legs, // 👈 assign the processed legs
-                  startTime: journey.startDateTime,
-                  endTime: journey.endDateTime,
-                  totalDuration: totalDuration,
-                };
-
-                // Extract route information
-                let routeName = "";
-                if (leg.routeOptions && leg.routeOptions.length > 0) {
-                  routeName = leg.routeOptions[0].name || "";
-                } else if (leg.routeName) {
-                  routeName = leg.routeName;
-                } else if (leg.line && leg.line.name) {
-                  routeName = leg.line.name;
-                }
-
-                // Extract location names with fallbacks
-                const fromName =
-                  leg.departurePoint?.commonName ||
-                  leg.from?.name ||
-                  leg.from?.commonName ||
-                  "Starting point";
-
-                const toName =
-                  leg.arrivalPoint?.commonName ||
-                  leg.to?.name ||
-                  leg.to?.commonName ||
-                  "Destination";
-
-                const departureTime =
-                  leg.departureTime ||
-                  leg.startDateTime ||
-                  journey.startDateTime;
-                const arrivalTime =
-                  leg.arrivalTime || leg.endDateTime || journey.endDateTime;
-
-                // Calculate duration from timestamps (fallback to leg.duration if needed)
-                let calculatedDuration = leg.duration || 0; // fallback
-                if (departureTime && arrivalTime) {
-                  const dep = new Date(departureTime).getTime();
-                  const arr = new Date(arrivalTime).getTime();
-                  if (!isNaN(dep) && !isNaN(arr)) {
-                    calculatedDuration = Math.max(
-                      0,
-                      Math.round((arr - dep) / 1000)
-                    );
-                  }
-                }
-
-                const processedLeg = {
-                  mode: {
-                    name: modeName,
-                    type: modeName.toLowerCase(),
-                  },
-                  routeName: routeName,
-                  departureTime: departureTime,
-                  arrivalTime: arrivalTime,
-                  duration: calculatedDuration,
-                  from: {
-                    name: fromName,
-                    lat: leg.departurePoint?.lat || leg.from?.lat || 0,
-                    lon: leg.departurePoint?.lon || leg.from?.lon || 0,
-                  },
-                  to: {
-                    name: toName,
-                    lat: leg.arrivalPoint?.lat || leg.to?.lat || 0,
-                    lon: leg.arrivalPoint?.lon || leg.to?.lon || 0,
-                  },
-                  instruction:
-                    leg.instruction?.summary || leg.instruction?.detailed || "",
-                  isWalking: modeName.toLowerCase().includes("walk"),
-                };
-
-                processedJourney.legs.push(processedLeg);
+              legs.push({
+                mode: { name: modeName, type: modeName.toLowerCase() },
+                routeName,
+                departureTime,
+                arrivalTime,
+                duration: calculatedDuration,
+                from: {
+                  name: fromName,
+                  lat: leg.departurePoint?.lat || leg.from?.lat || 0,
+                  lon: leg.departurePoint?.lon || leg.from?.lon || 0,
+                },
+                to: {
+                  name: toName,
+                  lat: leg.arrivalPoint?.lat || leg.to?.lat || 0,
+                  lon: leg.arrivalPoint?.lon || leg.to?.lon || 0,
+                },
+                instruction: leg.instruction?.summary || "",
+                isWalking: modeName.toLowerCase().includes("walk"),
               });
-            }
+            });
+          }
 
-            processedJourneys.push(processedJourney);
+          const totalDuration = legs.reduce(
+            (sum, leg) => sum + leg.duration,
+            0
+          );
+          processedJourneys.push({
+            id: index + 1,
+            duration: totalDuration,
+            legs,
+            startTime: journey.startDateTime,
+            endTime: journey.endDateTime,
           });
-        }
-
-        return {
-          journeys: processedJourneys,
-          totalJourneys: processedJourneys.length,
-        };
+        });
       }
 
-      return null;
+      return {
+        journeys: processedJourneys,
+        totalJourneys: processedJourneys.length,
+      };
     } catch (error) {
-      console.error("Error fetching journey data:", error);
+      console.error("Journey fetch error:", error);
       throw error;
     }
   };
-
   // Enhanced plan journey function
   const planJourney = async () => {
     if (!journeyFrom || !journeyTo) {
@@ -297,7 +278,7 @@ const JourneyPlanner = ({
     setJourneyResults(null);
 
     try {
-      const result = await fetchJourneyData(journeyFrom, journeyTo);
+      const result = await fetchJourneyData(journeyFrom, journeyTo, userLocation);
 
       if (result && result.journeys.length > 0) {
         setJourneyResults(result);
@@ -567,7 +548,7 @@ const JourneyPlanner = ({
 
       {/* Quick Access Section */}
       {searchHistory.length > 0 && (
-        <div className="bg-white rounded-xl shadow-lg p-4">
+        <div className={`${themeClasses.bg} rounded-xl shadow-lg p-4`}>
           <h3 className="text-sm font-medium text-gray-700 mb-3">
             Recent Searches
           </h3>
@@ -586,7 +567,7 @@ const JourneyPlanner = ({
       )}
 
       {/* Main Form */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
+      <div className={`${getBgColor()} rounded-xl shadow-lg p-6`}>
         <div className="space-y-4">
           {/* From Input */}
           <div className="relative" ref={fromInputRef}>
@@ -661,7 +642,9 @@ const JourneyPlanner = ({
                 onFocus={() => journeyTo && setShowToSuggestions(true)}
               />
               {showToSuggestions && toSuggestions.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                <div
+                  className={`absolute z-10 w-full mt-1 ${getBgColor()} border ${getBorderColor()} rounded-lg shadow-lg max-h-60 overflow-y-auto`}
+                >
                   {toSuggestions.map((suggestion, index) => (
                     <div
                       key={index}
@@ -686,7 +669,7 @@ const JourneyPlanner = ({
             type="button"
             onClick={planJourney}
             disabled={journeyLoading || !journeyFrom || !journeyTo}
-            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-6 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full bg-linear-to-r from-blue-600 to-indigo-600 text-white py-3 px-6 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {journeyLoading ? (
               <>
@@ -705,9 +688,11 @@ const JourneyPlanner = ({
 
       {/* Error Message */}
       {journeyError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 animate-fadeIn">
+        <div
+          className={`${getBgColor()} border ${getBgColor()} rounded-lg p-3 animate-fadeIn`}
+        >
           <div className="flex items-center space-x-2">
-            <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
             <p className="text-red-700 text-sm">{journeyError}</p>
           </div>
         </div>
@@ -715,7 +700,7 @@ const JourneyPlanner = ({
 
       {/* Journey Results */}
       {journeyResults && !journeyLoading && (
-        <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className={`${getBgColor()} rounded-xl shadow-lg p-6`}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-800">
               Journey Results
@@ -850,7 +835,7 @@ const JourneyPlanner = ({
 
       {/* Map Section */}
       {showMap && journeyResults && !journeyLoading && (
-        <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className={`${getBgColor()} rounded-xl shadow-lg p-6`}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-800 flex items-center">
               <Map className="w-5 h-5 mr-2 text-blue-600" /> Journey Map
@@ -862,7 +847,9 @@ const JourneyPlanner = ({
               Hide Map
             </button>
           </div>
-          <div className="h-96 w-full bg-gray-100 rounded-lg flex items-center justify-center">
+          <div
+            className={`h-96 w-full ${getBgColor} rounded-lg flex items-center justify-center`}
+          >
             <div className="text-center">
               <Map className="w-16 h-16 text-gray-400 mx-auto mb-2" />
               <p className="text-gray-600">
@@ -879,7 +866,7 @@ const JourneyPlanner = ({
 
       {/* Loading State */}
       {journeyLoading && (
-        <div className="bg-white rounded-xl shadow-lg p-6 text-center">
+        <div className={`${getBgColor()} rounded-xl shadow-lg p-6 text-center`}>
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-blue-600" />
           <p className="text-gray-600">Finding the best routes for you...</p>
         </div>
@@ -887,7 +874,7 @@ const JourneyPlanner = ({
 
       {/* Saved Journeys Section */}
       {savedJourneys.length > 0 && !journeyLoading && !journeyResults && (
-        <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className={`${getBgColor()} rounded-xl shadow-lg p-6`}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-800">
               Saved Journeys

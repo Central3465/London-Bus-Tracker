@@ -13,11 +13,11 @@ import {
   X,
   Search,
 } from "lucide-react";
-
+import { useTheme } from "../contexts/ThemeContext";
 const TFL_APP_ID = import.meta.env.VITE_TFL_APP_ID;
 const TFL_APP_KEY = import.meta.env.VITE_TFL_APP_KEY;
 
-const ServiceDisruptionsTab = () => {
+const ServiceDisruptionsTab = ({theme}) => {
   const [disruptions, setDisruptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -25,6 +25,47 @@ const ServiceDisruptionsTab = () => {
   const [selectedMode, setSelectedMode] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSeverity, setSelectedSeverity] = useState("all");
+
+  const { themeClasses } = useTheme();
+
+  const getTextColor = (baseColor) => {
+    switch (theme) {
+      case "dark":
+        return "text-gray-100";
+      case "high-contrast":
+        return "text-yellow-300";
+      case "minimalist":
+        return "text-gray-800";
+      default:
+        return baseColor || "text-gray-900";
+    }
+  };
+
+  const getBgColor = () => {
+    switch (theme) {
+      case "dark":
+        return "bg-gray-800";
+      case "high-contrast":
+        return "bg-black";
+      case "minimalist":
+        return "bg-white";
+      default:
+        return "bg-white";
+    }
+  };
+
+  const getBorderColor = () => {
+    switch (theme) {
+      case "dark":
+        return "border-gray-700";
+      case "high-contrast":
+        return "border-yellow-500";
+      case "minimalist":
+        return "border-gray-200";
+      default:
+        return "border-gray-200";
+    }
+  };
 
   const modeConfig = {
     bus: { icon: Bus, color: "bg-blue-500", label: "Bus" },
@@ -267,10 +308,10 @@ const ServiceDisruptionsTab = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className={`${getBgColor()} rounded-xl shadow-sm border ${getBorderColor()} p-6`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-gradient-to-r from-red-500 to-orange-500 rounded-lg flex items-center justify-center">
+            <div className="w-12 h-12 bg-linear-to-r from-red-500 to-orange-500 rounded-lg flex items-center justify-center">
               <AlertTriangle className="w-6 h-6 text-white" />
             </div>
             <div>
@@ -300,7 +341,7 @@ const ServiceDisruptionsTab = () => {
         )}
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+      <div className={`bg-blue-50 border border-blue-200 rounded-xl p-4`}>
         <div className="flex items-start space-x-3">
           <InfoIcon />
           <div>
@@ -315,7 +356,7 @@ const ServiceDisruptionsTab = () => {
       </div>
 
       {/* Filters Row */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+      <div className={`${getBgColor()} rounded-xl shadow-sm border ${getBorderColor()} p-4`}>
         <div className="flex flex-col sm:flex-row gap-4">
           {/* Search Bar */}
           <div className="flex-1 relative">
@@ -402,14 +443,14 @@ const ServiceDisruptionsTab = () => {
       )}
 
       {loading && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+        <div className={`${getBgColor()} rounded-xl shadow-sm border ${getBorderColor()} p-8 text-center`}>
           <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
           <p className="text-gray-600">Loading service disruptions...</p>
         </div>
       )}
 
       {!loading && !error && filteredDisruptions.length === 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+        <div className={`${getBgColor()} rounded-xl shadow-sm border ${getBorderColor()} p-8 text-center`}>
           <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
             No matching services found
@@ -434,7 +475,7 @@ const ServiceDisruptionsTab = () => {
             return (
               <div
                 key={line.id}
-                className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
+                className={`${getBgColor()} rounded-xl shadow-sm border ${getBorderColor()} p-6 hover:shadow-md transition-shadow`}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-4">
@@ -455,7 +496,7 @@ const ServiceDisruptionsTab = () => {
                       <div
                         className={`flex items-center space-x-2 p-3 rounded-lg ${severityColor}`}
                       >
-                        <SeverityIcon className="w-5 h-5 flex-shrink-0" />
+                        <SeverityIcon className="w-5 h-5 shrink-0" />
                         <div>
                           <p className="font-medium">{severityText}</p>
                           {status.reason && (
@@ -504,7 +545,7 @@ const ServiceDisruptionsTab = () => {
 
 const InfoIcon = () => (
   <svg
-    className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0"
+    className="w-5 h-5 text-blue-500 mt-0.5 shrink-0"
     fill="none"
     stroke="currentColor"
     viewBox="0 0 24 24"

@@ -16,11 +16,13 @@ import {
   Wrench,
 } from "lucide-react";
 import BusMapComponent from "./BusMapComponent";
+import { useTheme } from "../contexts/ThemeContext";
 
 const VehicleTrackerView = ({
   vehicleIdInput,
   setVehicleIdInput,
   fetchVehicleDetails,
+  theme
 }) => {
   const [vehicleData, setVehicleData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -29,6 +31,46 @@ const VehicleTrackerView = ({
   const [busDetails, setBusDetails] = useState(null);
   const [busImage, setBusImage] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const { themeClasses } = useTheme();
+
+  const getTextColor = (baseColor) => {
+    switch (theme) {
+      case "dark":
+        return "text-gray-100";
+      case "high-contrast":
+        return "text-yellow-300";
+      case "minimalist":
+        return "text-gray-800";
+      default:
+        return baseColor || "text-gray-900";
+    }
+  };
+
+  const getBgColor = () => {
+    switch (theme) {
+      case "dark":
+        return "bg-gray-800";
+      case "high-contrast":
+        return "bg-black";
+      case "minimalist":
+        return "bg-white";
+      default:
+        return "bg-white";
+    }
+  };
+
+  const getBorderColor = () => {
+    switch (theme) {
+      case "dark":
+        return "border-gray-700";
+      case "high-contrast":
+        return "border-yellow-500";
+      case "minimalist":
+        return "border-gray-200";
+      default:
+        return "border-gray-200";
+    }
+  };
 
   // Remove duplicates (unique by naptanId) - represents the full route
   const uniqueVehicleData = Array.isArray(vehicleData)
@@ -417,7 +459,7 @@ const VehicleTrackerView = ({
   }, [vehicleData, stopLocations, vehicleLocation]);
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6">
+    <div className={`${getBgColor()} rounded-xl shadow-lg p-6`}>
       <h2 className="text-2xl font-bold text-gray-800 mb-4">
         Track a Specific Vehicle
       </h2>
@@ -444,7 +486,7 @@ const VehicleTrackerView = ({
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+        <div className={`${getBgColor()} border ${getBorderColor()} rounded-lg p-3 mb-4`}>
           <div className="flex items-center space-x-2">
             <Info className="w-4 h-4 text-red-500" />
             <p className="text-red-700 text-sm">{error}</p>
@@ -464,7 +506,7 @@ const VehicleTrackerView = ({
         <div className="space-y-6">
           {/* Vehicle Info Header */}
           {uniqueVehicleData.length > 0 && (
-            <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+            <div className={`${getBgColor()} border ${getBorderColor()} rounded-lg p-4`}>
               <div className="flex items-center space-x-3 mb-2">
                 <div className="w-14 h-14 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold text-xl">
                   {uniqueVehicleData[0]?.lineName?.toUpperCase() || "N/A"}
@@ -483,8 +525,8 @@ const VehicleTrackerView = ({
 
           {/* Bus Details Section */}
           {busDetails && !loadingDetails && (
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-              <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
+            <div className={`${getBgColor()} border ${getBorderColor()} rounded-xl shadow-sm overflow-hidden`}>
+              <div className={`p-4 ${getBgColor()} from-blue-50 to-indigo-50 border-b ${getBorderColor()}`}>
                 <h3 className="text-lg font-semibold text-gray-800 flex items-center">
                   <Bus className="w-5 h-5 mr-2 text-blue-600" /> Bus Details
                 </h3>
@@ -495,26 +537,26 @@ const VehicleTrackerView = ({
                   {/* Bus Image */}
                   <div className="md:w-1/3">
                     {busImage ? (
-                      <div className="rounded-lg overflow-hidden border border-gray-200">
+                      <div className={`rounded-lg overflow-hidden border £${getBgColor()}`}>
                         <img
                           src={busImage}
                           alt={`Bus ${busDetails.model}`}
                           className="w-full h-48 object-cover"
                         />
-                        <div className="p-2 bg-gray-50 text-center text-xs text-gray-500">
+                        <div className={`p-2 ${getBgColor()} text-center text-xs text-gray-500`}>
                           <Camera className="w-4 h-4 inline mr-1" />
                           Photo from Unsplash
                         </div>
                       </div>
                     ) : (
-                      <div className="bg-gray-100 border-2 border-dashed rounded-xl w-full h-48 flex items-center justify-center">
+                      <div className={`${getBgColor()} border-2 border-dashed rounded-xl w-full h-48 flex items-center justify-center`}>
                         <Image className="w-10 h-10 text-gray-400" />
                       </div>
                     )}
                     {/* Warning message about image accuracy */}
                     <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-lg p-2">
                       <div className="flex items-start space-x-2">
-                        <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                        <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5 shrink-0" />
                         <p className="text-xs text-yellow-700">
                           <span className="font-medium">Note:</span> This image
                           may not show the exact vehicle as it's sourced from
@@ -623,7 +665,7 @@ const VehicleTrackerView = ({
 
           {/* Loading Bus Details */}
           {loadingDetails && (
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+            <div className={`${getBgColor()} border ${getBorderColor()} rounded-xl shadow-sm p-6`}>
               <div className="flex items-center justify-center space-x-2 text-gray-500">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                 <span>Loading bus details...</span>
@@ -632,7 +674,7 @@ const VehicleTrackerView = ({
           )}
 
           {/* Time Format Toggle */}
-          <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+          <div className={`${getBgColor()} border ${getBorderColor()}} rounded-lg p-4`}>
             <div className="flex items-center justify-between">
               <span className="font-medium text-gray-700">Time Format</span>
               <button
@@ -654,7 +696,7 @@ const VehicleTrackerView = ({
           </div>
 
           {/* Full Scheduled Route List (Full Route for the Vehicle) */}
-          <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+          <div className={`${getBgColor()} border ${getBorderColor()} rounded-lg p-4`}>
             <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
               <Navigation className="w-5 h-5 mr-2 text-blue-600" /> Full Route
               Schedule
@@ -692,7 +734,7 @@ const VehicleTrackerView = ({
           </div>
 
           {/* Map Section */}
-          <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+          <div className={`${getBgColor()} border ${getBorderColor()} rounded-lg p-4`}>
             <h3 className="font-semibold text-gray-800 mb-2 flex items-center">
               <MapPin className="w-5 h-5 mr-2 text-blue-600" /> Live Map
             </h3>

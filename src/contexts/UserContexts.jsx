@@ -11,147 +11,91 @@ export const UserProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [subscription, setSubscription] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem("token") || null);
-
-  useEffect(
-    () => {
-      const token = localStorage.getItem("token");
-      if (token) {
-        // ✅ Add this line to force a fresh fetch every time the app reloads
-        setUser(null); // 👈 This triggers a re-fetch below
-        setSubscription(null);
-
-        fetch("http://localhost:5000/api/user/me", {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            setUser(data.user);
-            setSubscription(data.subscription);
-          })
-          .catch(() => {
-            localStorage.removeItem("token");
-            setUser(null);
-            setSubscription(null);
-          });
-      } else {
-        setUser(null);
-        setSubscription(null);
-      }
-    },
-    [
-      /* empty dependency array */
-    ]
-  );
-
-  // Check if user is already logged in when component mounts
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    const storedSubscription = localStorage.getItem("subscription");
-
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-
-    if (storedSubscription) {
-      setSubscription(JSON.parse(storedSubscription));
-    }
-
-    setIsLoading(false);
+    console.log("API Base URL:", import.meta.env.VITE_API_BASE_URL);
   }, []);
+  const API_BASE = import.meta.env.VITE_API_BASE_URL; // ✅ Single source of truth
 
-  // Inside UserContext
+  // Auto-login on app start
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
-      // Optional: verify token is still valid by calling /api/user/me
-      fetch("http://localhost:5000/api/user/me", {
+      fetch(`${API_BASE}/user/me`, {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((res) => res.json())
         .then((data) => {
-          setUser(data.user);
-          setSubscription(data.subscription);
+          if (data.user) {
+            setUser(data.user);
+            setSubscription(data.subscription || null);
+          } else {
+            localStorage.removeItem("token");
+          }
         })
-        .catch(() => {
-          // Token invalid → clear it
+        .catch((err) => {
+          console.error("Auto-login failed", err);
           localStorage.removeItem("token");
+        })
+        .finally(() => {
+          setIsLoading(false);
         });
+    } else {
+      setIsLoading(false);
     }
-  }, []);
+  }, [API_BASE]);
 
   const login = async (email, password) => {
-    const res = await fetch("http://localhost:5000/api/login", {
+    const res = await fetch(`${API_BASE}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
-    const data = await res.json();
 
-    if (!res.ok) throw new Error(data.error);
+    const data = await res.json().catch(() => ({})); // avoid JSON parse crash
 
-    // ✅ SAVE TOKEN TO localStorage
+    if (!res.ok) {
+      const errorMessage =
+        data.error || data.message || `Login failed (${res.status})`;
+      const error = new Error(errorMessage);
+      error.status = res.status; // attach status for UI logic
+      throw error;
+    }
+
     localStorage.setItem("token", data.token);
-
-    // Update context
     setUser(data.user);
-    setSubscription(data.subscription);
+    setSubscription(data.subscription || null);
   };
 
   const signup = async (email, password, name) => {
-    try {
-      const response = await fetch("http://localhost:5000/api/signup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password, name }),
-      });
+    const res = await fetch(`${API_BASE}/signup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, name }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Signup failed");
 
-      if (!response.ok) {
-        throw new Error("Signup failed");
-      }
-
-      const data = await response.json();
-      setUser(data.user);
-      setSubscription(data.subscription || null);
-
-      // Store user and subscription in localStorage
-      localStorage.setItem("user", JSON.stringify(data.user));
-      if (data.subscription) {
-        localStorage.setItem("subscription", JSON.stringify(data.subscription));
-      }
-
-      return data;
-    } catch (error) {
-      throw error;
-    }
+    localStorage.setItem("token", data.token);
+    setUser(data.user);
+    setSubscription(data.subscription || null);
+    return data;
   };
 
   const logout = () => {
-    localStorage.removeItem("token");
     setUser(null);
     setSubscription(null);
-    // Optional: redirect inside context, or let caller handle it
+    localStorage.removeItem("token");
   };
 
   const updateSubscription = async () => {
-    if (!user?.email) return; // Need email to fetch
-
+    if (!user?.email) return;
     try {
-      const response = await fetch(
-        `http://localhost:5000/api/user/${encodeURIComponent(user.email)}`
+      const res = await fetch(
+        `${API_BASE}/user/${encodeURIComponent(user.email)}`
       );
-      if (response.ok) {
-        const data = await response.json();
+      if (res.ok) {
+        const data = await res.json();
         setSubscription(data.subscription);
-        // Also update localStorage
-        if (data.subscription) {
-          localStorage.setItem(
-            "subscription",
-            JSON.stringify(data.subscription)
-          );
-        }
       }
     } catch (err) {
       console.error("Failed to refresh subscription", err);

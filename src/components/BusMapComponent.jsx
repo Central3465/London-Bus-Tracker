@@ -8,9 +8,12 @@ import "leaflet/dist/leaflet.css";
 // Fix marker icon issue in Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
-  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+  iconRetinaUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+  iconUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+  shadowUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
 // Custom icons
@@ -91,7 +94,12 @@ function FitMapBounds({ stops, vehicleLocation, userLocation }) {
   return null;
 }
 
-const BusMapComponent = ({ stops = [], vehicleLocation = null, userLocation = null }) => {
+const BusMapComponent = ({
+  stops = [],
+  vehicleLocation = null,
+  userLocation = null,
+  multipleVehicles = null,
+}) => {
   // Default center (London-ish)
   const defaultCenter = [51.5074, -0.1278];
 
@@ -110,9 +118,8 @@ const BusMapComponent = ({ stops = [], vehicleLocation = null, userLocation = nu
       {stops.map((stop, i) => (
         <Marker key={i} position={[stop.lat, stop.lng]} icon={busStopIcon}>
           <Popup>
-            <strong>{stop.stopName || stop.commonName || 'Bus Stop'}</strong>
-            <br />
-            ({stop.lat.toFixed(5)}, {stop.lng.toFixed(5)})
+            <strong>{stop.stopName || stop.commonName || "Bus Stop"}</strong>
+            <br />({stop.lat.toFixed(5)}, {stop.lng.toFixed(5)})
           </Popup>
         </Marker>
       ))}
@@ -125,28 +132,52 @@ const BusMapComponent = ({ stops = [], vehicleLocation = null, userLocation = nu
         >
           <Popup>
             🚌 <strong>Bus</strong>
-            <br />
-            ({vehicleLocation.lat.toFixed(5)}, {vehicleLocation.lng.toFixed(5)})
+            <br />({vehicleLocation.lat.toFixed(5)},{" "}
+            {vehicleLocation.lng.toFixed(5)})
           </Popup>
         </Marker>
       )}
 
+      {multipleVehicles?.map((vehicle) => (
+        <Marker
+          key={vehicle.id}
+          position={[vehicle.lat, vehicle.lng]}
+          icon={L.divIcon({
+            html: `<div class="bus-icon" style="
+        background: #4F46E5;
+        color: white;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 10px;
+        transform: rotate(${vehicle.heading || 0}deg);
+      ">${vehicle.lineId?.toUpperCase()}</div>`,
+            className: "",
+            iconSize: [32, 32],
+          })}
+        />
+      ))}
+
       {/* User location marker */}
       {userLocation && (
-        <Marker
-          position={[userLocation.lat, userLocation.lng]}
-          icon={userIcon}
-        >
+        <Marker position={[userLocation.lat, userLocation.lng]} icon={userIcon}>
           <Popup>
             <strong>You are here</strong>
-            <br />
-            ({userLocation.lat.toFixed(5)}, {userLocation.lng.toFixed(5)})
+            <br />({userLocation.lat.toFixed(5)}, {userLocation.lng.toFixed(5)})
           </Popup>
         </Marker>
       )}
 
       {/* Automatically adjust map to show everything */}
-      <FitMapBounds stops={stops} vehicleLocation={vehicleLocation} userLocation={userLocation} />
+      <FitMapBounds
+        stops={stops}
+        vehicleLocation={vehicleLocation}
+        userLocation={userLocation}
+      />
     </MapContainer>
   );
 };

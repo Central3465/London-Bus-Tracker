@@ -14,7 +14,9 @@ const CACHE_DURATION = 60000; // 60 seconds
 // Function to resolve a location string to coordinates using geocode.maps.co
 const resolveLocation = async (query) => {
   if (!GEOCODE_API_KEY) {
-    console.error("Geocoding API key is missing. Please set VITE_GEOCODE_API_KEY in your environment.");
+    console.error(
+      "Geocoding API key is missing. Please set VITE_GEOCODE_API_KEY in your environment."
+    );
     throw new Error("Geocoding service is not configured correctly.");
   }
 
@@ -42,7 +44,7 @@ const resolveLocation = async (query) => {
       let errorDetails = `HTTP error! status: ${response.status}`;
       try {
         const errorBody = await response.json();
-        errorDetails += ` - ${errorBody.error || errorBody.message || ''}`;
+        errorDetails += ` - ${errorBody.error || errorBody.message || ""}`;
       } catch (e) {
         // If parsing JSON fails, just use the status
         console.warn("Could not parse geocoding error response:", e);
@@ -87,8 +89,13 @@ const resolveLocation = async (query) => {
 };
 
 export const fetchTflRouteSequence = async (lineId) => {
-  const url = `https://api.tfl.gov.uk/Line/${encodeURIComponent(lineId)}/Route/Sequence/all`;
-  const params = new URLSearchParams({ app_id: TFL_APP_ID, app_key: TFL_APP_KEY });
+  const url = `https://api.tfl.gov.uk/Line/${encodeURIComponent(
+    lineId
+  )}/Route/Sequence/all`;
+  const params = new URLSearchParams({
+    app_id: TFL_APP_ID,
+    app_key: TFL_APP_KEY,
+  });
 
   try {
     const response = await fetch(`${url}?${params}`);
@@ -110,7 +117,9 @@ export const fetchTflRouteSequence = async (lineId) => {
 
 export const fetchTflBusSchedule = async (lineId) => {
   if (!lineId || !TFL_APP_ID || !TFL_APP_KEY) {
-    console.error("Line ID or TfL API credentials missing for schedule search.");
+    console.error(
+      "Line ID or TfL API credentials missing for schedule search."
+    );
     return null;
   }
 
@@ -125,7 +134,9 @@ export const fetchTflBusSchedule = async (lineId) => {
   try {
     console.log(`Fetching TfL schedule for line: ${lineId}`);
     const response = await fetch(
-      `${TFL_API_BASE}/Search/BusSchedules?query=${encodeURIComponent(lineId)}&app_id=${TFL_APP_ID}&app_key=${TFL_APP_KEY}`
+      `${TFL_API_BASE}/Search/BusSchedules?query=${encodeURIComponent(
+        lineId
+      )}&app_id=${TFL_APP_ID}&app_key=${TFL_APP_KEY}`
     );
 
     if (!response.ok) {
@@ -151,6 +162,66 @@ export const fetchTflBusSchedule = async (lineId) => {
     console.error("Error fetching TfL bus schedule:", err);
     // Return null or an empty object/array depending on how LiveBusView handles errors
     return null;
+  }
+};
+
+export const fetchVehicleDetails = async (vehicleId) => {
+  const url = `https://api.tfl.gov.uk/Vehicle/${encodeURIComponent(
+    vehicleId
+  )}/Arrivals`;
+  const params = new URLSearchParams({
+    app_id: TFL_APP_ID,
+    app_key: TFL_APP_KEY,
+  });
+
+  try {
+    const response = await fetch(`${url}?${params}`);
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.warn(`Vehicle with ID ${vehicleId} not found.`);
+        return { error: "Vehicle not found", data: null };
+      }
+      throw new Error(`TfL API error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    console.log(`Vehicle details for ${vehicleId}:`, data);
+    return { error: null, data };
+  } catch (err) {
+    console.error("Error fetching vehicle details:", err);
+    return { error: err.message, data: null };
+  }
+};
+
+// Fetch disruptions for a specific stop
+export const fetchStopDisruptions = async (naptanId) => {
+  const url = `https://api.tfl.gov.uk/StopPoint/${naptanId}/Disruption`;
+  const params = new URLSearchParams({
+    app_id: import.meta.env.VITE_TFL_APP_ID,
+    app_key: import.meta.env.VITE_TFL_APP_KEY,
+  });
+
+  const res = await fetch(`${url}?${params}`);
+  if (!res.ok) throw new Error(`TfL API error: ${res.status}`);
+  return await res.json();
+};
+
+// Fetch vehicles on a specific route
+export const fetchVehiclesOnRoute = async (lineId) => {
+  try {
+    const res = await fetch(
+      `https://api.tfl.gov.uk/Line/${encodeURIComponent(lineId)}/Vehicle`
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      return {
+        error: `TfL Vehicle API error: ${res.status} – ${text}`,
+        data: null,
+      };
+    }
+    const data = await res.json();
+    return { error: null, data: Array.isArray(data) ? data : [] };
+  } catch (err) {
+    return { error: err.message, data: null };
   }
 };
 
@@ -239,7 +310,8 @@ export const fetchLiveArrivals = async (stopId) => {
 };
 
 // NEW FUNCTION: Fetch scheduled departures for a specific stop from bustimes.org
-export const fetchScheduledDepartures = async (stopId) => { // stopId is likely the naptanId from TfL
+export const fetchScheduledDepartures = async (stopId) => {
+  // stopId is likely the naptanId from TfL
   if (!stopId) return [];
 
   const cacheKey = `scheduled_departures_${stopId}`;
@@ -255,14 +327,18 @@ export const fetchScheduledDepartures = async (stopId) => { // stopId is likely 
     console.log(`Fetching scheduled departures for stop: ${stopId}`);
     // Attempt to use the TfL naptanId directly as the ATCO code in the bustimes.org query
     const response = await fetch(
-      `https://bustimes.org/api/trips/?stops__atco_code=${encodeURIComponent(stopId)}`
+      `https://bustimes.org/api/trips/?stops__atco_code=${encodeURIComponent(
+        stopId
+      )}`
     );
 
     if (!response.ok) {
       // A 404 might mean no trips found for this stop, which is okay.
       if (response.status === 404) {
-         console.warn(`No scheduled trips found for stop ID (ATCO/Naptan): ${stopId}`);
-         return []; // Return empty array instead of throwing
+        console.warn(
+          `No scheduled trips found for stop ID (ATCO/Naptan): ${stopId}`
+        );
+        return []; // Return empty array instead of throwing
       }
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -287,7 +363,6 @@ export const fetchScheduledDepartures = async (stopId) => { // stopId is likely 
     return [];
   }
 };
-
 
 // Function to get detailed stop information from bustimes.org (if needed for mapping naptan->atco)
 // This might be useful if naptanId != atco_code
@@ -325,7 +400,6 @@ export const fetchBustimesStopDetails = async (atcoCode) => {
   }
 };
 
-
 export const fetchVehicleJourney = async (vehicleId) => {
   if (!vehicleId) {
     console.error("Vehicle ID is required to fetch vehicle journey.");
@@ -349,7 +423,9 @@ export const fetchVehicleJourney = async (vehicleId) => {
     if (!response.ok) {
       // Check if the vehicle ID is not found (404) or another error occurred
       if (response.status === 404) {
-        console.warn(`Vehicle ID ${vehicleId} not found or not currently tracked.`);
+        console.warn(
+          `Vehicle ID ${vehicleId} not found or not currently tracked.`
+        );
         // Return an empty array or a specific indicator instead of throwing
         // This prevents the detailed view from crashing if the ID is invalid
         return [];
@@ -397,8 +473,12 @@ export const fetchJourneyPlan = async (from, to, userLocation) => {
     // Use the new resolveLocation function
     toCoords = await resolveLocation(to);
 
-    console.log(`Resolved 'From': ${fromCoords.name} (${fromCoords.lat}, ${fromCoords.lon})`);
-    console.log(`Resolved 'To': ${toCoords.name} (${toCoords.lat}, ${toCoords.lon})`);
+    console.log(
+      `Resolved 'From': ${fromCoords.name} (${fromCoords.lat}, ${fromCoords.lon})`
+    );
+    console.log(
+      `Resolved 'To': ${toCoords.name} (${toCoords.lat}, ${toCoords.lon})`
+    );
 
     // Now call JourneyResults with coordinates
     const queryParams = new URLSearchParams({
@@ -409,7 +489,9 @@ export const fetchJourneyPlan = async (from, to, userLocation) => {
     });
 
     const journeyResponse = await fetch(
-      `${TFL_API_BASE}/Journey/JourneyResults/${fromCoords.lat},${fromCoords.lon}/to/${toCoords.lat},${toCoords.lon}?${queryParams.toString()}`
+      `${TFL_API_BASE}/Journey/JourneyResults/${fromCoords.lat},${
+        fromCoords.lon
+      }/to/${toCoords.lat},${toCoords.lon}?${queryParams.toString()}`
     );
 
     if (!journeyResponse.ok) {

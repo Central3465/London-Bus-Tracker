@@ -1,3 +1,4 @@
+// src/App.jsx
 import React, { useState, useEffect, useRef } from "react";
 import {
   Search,
@@ -17,10 +18,12 @@ import {
   X,
   Menu,
 } from "lucide-react";
+import { ThemeProvider } from "./contexts/ThemeContext";
+import { useTheme } from "./contexts/ThemeContext";
 import BusMap from "./BusMap";
 import LiveBusView from "./components/LiveBusView";
 import JourneyPlanner from "./components/JourneyPlanner";
-import EnthusiastHub from "./components/EnthusisatHub";
+import EnthusiastHub from "./components/EnthusiastHub";
 import VehicleTrackerView from "./components/VehicleTrackerView";
 import BusMapComponent from "./components/BusMapComponent";
 import ServiceDisruptionsTab from "./components/ServiceDisruptions";
@@ -31,8 +34,10 @@ import SuccessPage from "./components/SuccessPage";
 import CancelPage from "./components/CancelPage";
 import SignInPage from "./components/SignInPage";
 import SignUpPage from "./components/SignUpPage";
+import MyRoutesTab from "./components/MyRoutesTab";
 import Navigation1 from "./components/Navigation";
 import { useUser } from "./contexts/UserContexts";
+import MyFleetTracker from "./components/MyFleetTracker";
 
 import DefaultBusIcon from "./assets/Bus.png";
 import RoutemasterIcon from "./assets/icon-routemaster.png";
@@ -40,6 +45,8 @@ import NightBusIcon from "./assets/icon-nightbus.png";
 import ElectricBusIcon from "./assets/electricbus.png";
 import HalloweenBusIcon from "./assets/HalloweenBus.png";
 import ChristmasBusIcon from "./assets/Christmasbus.png";
+import { useCustomAlerts } from "./hooks/useCustomAlerts";
+import AlertManager from "./components/AlertManager";
 
 import {
   fetchNearestStops,
@@ -66,6 +73,12 @@ const App = () => {
   const navigate = useNavigate();
   const [userLocation, setUserLocation] = useState(null);
   const [adblockDetected, setAdblockDetected] = useState(false);
+  const [customAlerts, setCustomAlerts] = useState([]);
+  const alertsEnabled = localStorage.getItem("customAlertsEnabled") === "true";
+  const favoriteStops = JSON.parse(
+    localStorage.getItem("favoriteStops") || "[]"
+  );
+  const myFleet = JSON.parse(localStorage.getItem("myFleet") || "[]");
   const [adblockModalStep, setAdblockModalStep] = useState("initial"); // 'initial' | 'instructions'
   const [nearestStops, setNearestStops] = useState([]);
   const [selectedStop, setSelectedStop] = useState(null);
@@ -79,8 +92,7 @@ const App = () => {
   const [locationError, setLocationError] = useState(null);
   const [showMap, setShowMap] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [theme, setTheme] = useState("light"); // New theme state
-  const { subscription } = useUser();
+  const { subscription, user } = useUser();
   const hasPlus = subscription?.isActive;
   // New state for the notification banner
   const [showInfoBanner, setShowInfoBanner] = useState(false);
@@ -95,6 +107,8 @@ const App = () => {
   const [fromSuggestions, setFromSuggestions] = useState([]);
   const [toSuggestions, setToSuggestions] = useState([]);
 
+  const { theme, setTheme, themeClasses } = useTheme();
+
   const appIconMap = {
     default: DefaultBusIcon,
     routemaster: RoutemasterIcon,
@@ -106,16 +120,56 @@ const App = () => {
 
   const [currentAppIcon, setCurrentAppIcon] = useState("default");
 
+  <AlertManager
+    alerts={customAlerts}
+    onDismiss={(id) =>
+      setCustomAlerts((prev) => prev.filter((a) => a.id !== id))
+    }
+  />;
+
   useEffect(() => {
     const savedIcon = localStorage.getItem("appIcon") || "default";
-    // Only allow valid icon IDs
+    // Only allow valid icons
     if (appIconMap[savedIcon]) {
       setCurrentAppIcon(savedIcon);
     }
+  }, [user]); // 👈 Add `user` as dep so it resets when login state changes
+
+  useEffect(() => {
+    const handleIconChange = (e) => {
+      const newIcon = e.detail.iconId;
+      if (appIconMap[newIcon]) {
+        setCurrentAppIcon(newIcon);
+      }
+    };
+
+    window.addEventListener("appIconChanged", handleIconChange);
+
+    return () => {
+      window.removeEventListener("appIconChanged", handleIconChange);
+    };
   }, []);
+
+  useCustomAlerts({
+    fleet: myFleet,
+    favoriteStops,
+    isEnabled: hasPlus && alertsEnabled,
+    onAlert: (alert) => {
+      setCustomAlerts((prev) => [...prev, alert]);
+
+      // 🔔 Push notification
+      if (Notification.permission === "granted") {
+        new Notification(alert.title, {
+          body: alert.message,
+          icon: "/icons/icon-default.png",
+        });
+      }
+    },
+  });
 
   const tabs = [
     { id: "live", label: "Live Buses", icon: Bus, path: "/live" },
+    { id: "my-routes", label: "My Routes", icon: Clock, path: "/my-routes" },
     {
       id: "journey",
       label: "Journey Planner",
@@ -127,6 +181,12 @@ const App = () => {
       label: "Vehicle Tracker",
       icon: Navigation,
       path: "/vehicle",
+    },
+    {
+      id: "fleet",
+      label: "My Fleet",
+      icon: Star,
+      path: "/fleet",
     },
     {
       id: "disruptions",
@@ -161,12 +221,6 @@ const App = () => {
     }
   }, []);
 
-  // Apply theme to document body
-  useEffect(() => {
-    document.body.className = getThemeClasses(theme);
-    localStorage.setItem("appTheme", theme);
-  }, [theme]);
-
   // Adblock detection
   useEffect(() => {
     if (subscription?.isActive) return; // Skip if user has active subscription
@@ -191,19 +245,6 @@ const App = () => {
 
     return () => clearTimeout(timer);
   }, [subscription]);
-
-  const getThemeClasses = (themeName) => {
-    switch (themeName) {
-      case "dark":
-        return "bg-gray-900 text-white";
-      case "high-contrast":
-        return "bg-black text-yellow-300";
-      case "minimalist":
-        return "bg-gray-50 text-gray-800";
-      default:
-        return "bg-gradient-to-br from-blue-50 via-white to-indigo-50";
-    }
-  };
 
   // Get input text color based on theme
   const getInputTextColor = () => {
@@ -531,28 +572,32 @@ const App = () => {
     fetchAllStopData(stop.naptanId);
   };
 
-  const toggleFavorite = (stopId) => {
+  const toggleFavorite = (stopId, stop) => {
     const newFavorites = new Set(favorites);
     if (newFavorites.has(stopId)) {
       newFavorites.delete(stopId);
+      // Remove from localStorage array
+      const saved = JSON.parse(localStorage.getItem("favoriteStops") || "[]");
+      const updated = saved.filter((s) => s.naptanId !== stopId);
+      localStorage.setItem("favoriteStops", JSON.stringify(updated));
     } else {
       newFavorites.add(stopId);
+      // Add to localStorage
+      const saved = JSON.parse(localStorage.getItem("favoriteStops") || "[]");
+      if (!saved.some((s) => s.naptanId === stopId)) {
+        saved.push(stop);
+        localStorage.setItem("favoriteStops", JSON.stringify(saved));
+      }
     }
     setFavorites(newFavorites);
   };
 
-  // Theme-specific header classes
   const getHeaderClasses = () => {
-    switch (theme) {
-      case "dark":
-        return "bg-gray-800 shadow-sm border-b border-gray-700";
-      case "high-contrast":
-        return "bg-black shadow-sm border-b border-yellow-500";
-      case "minimalist":
-        return "bg-white shadow-sm border-b border-gray-200";
-      default:
-        return "bg-white shadow-sm border-b border-gray-100";
-    }
+    // Use the background from themeClasses, but tone it down slightly for header
+    return `${themeClasses.bg
+      .replace("min-h-screen", "")
+      .replace("to-", "to-")
+      .replace("from-", "from-")} shadow-sm border-b ${themeClasses.border}`;
   };
 
   const getTextColor = (baseColor, isPlaceholder = false) => {
@@ -580,7 +625,7 @@ const App = () => {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className={`min-h-screen ${themeClasses.bg}`}>
       {/* Information Banner - Top Right Corner */}
       {/* Adblock Detected Banner */}
       {/* Adblock Detected Full-Screen Modal */}
@@ -671,7 +716,7 @@ const App = () => {
           <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
             <div className="flex items-start justify-between mb-2">
               <div className="flex items-start">
-                <Info className="w-5 h-5 text-blue-600 mt-0.5 mr-2 flex-shrink-0" />
+                <Info className="w-5 h-5 text-blue-600 mt-0.5 mr-2 shrink-0" />
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900 mb-1">
                     Free Service Notice
@@ -684,7 +729,7 @@ const App = () => {
               </div>
               <button
                 onClick={() => setShowInfoBanner(false)}
-                className="text-gray-400 hover:text-gray-600 ml-2 flex-shrink-0"
+                className="text-gray-400 hover:text-gray-600 ml-2 shrink-0"
                 aria-label="Close"
               >
                 <X className="w-4 h-4" />
@@ -711,12 +756,17 @@ const App = () => {
         </div>
       )}
 
-      <header className={getHeaderClasses()}>
+      <header
+        className={`${themeClasses.bg.replace(
+          "min-h-screen",
+          ""
+        )} shadow-sm border-b ${themeClasses.border}`}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
               <img
-                src={appIconMap[currentAppIcon]}
+                src={appIconMap[user ? currentAppIcon : "default"]}
                 alt="App icon"
                 className="w-14 h-14 rounded-lg"
               />
@@ -729,9 +779,6 @@ const App = () => {
                 >
                   London Bus Tracker
                 </h1>
-                <p className={`text-xs ${getTextColor("text-gray-500")}`}>
-                  Live TfL Bus Data
-                </p>
               </div>
             </div>
 
@@ -856,6 +903,7 @@ const App = () => {
                   scheduledDepartures={scheduledDepartures}
                   searchQuery={searchQuery}
                   setSearchQuery={setSearchQuery}
+                  hasPlus={subscription?.isActive}
                   refreshData={refreshData}
                   isRefreshing={isRefreshing}
                   loading={loading}
@@ -879,7 +927,18 @@ const App = () => {
                 />
               }
             />
-
+            <Route
+              path="/my-routes"
+              element={
+                <MyRoutesTab
+                  favorites={favorites}
+                  theme={theme}
+                  getInputTextColor={getInputTextColor}
+                  getInputBgAndBorder={getInputBgAndBorder}
+                  userLocation={userLocation}
+                />
+              }
+            />
             <Route
               path="/journey"
               element={
@@ -933,6 +992,11 @@ const App = () => {
               }
             />
 
+            <Route
+              path="/fleet"
+              element={<MyFleetTracker></MyFleetTracker>}
+            />
+
             <Route path="/disruptions" element={<ServiceDisruptionsTab />} />
 
             <Route path="/plus" element={<PremiumPage />} />
@@ -977,7 +1041,9 @@ const App = () => {
 const AppWithRouter = () => {
   return (
     <Router>
-      <App />
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
     </Router>
   );
 };

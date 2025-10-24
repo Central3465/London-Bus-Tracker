@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useUser } from "../contexts/UserContexts";
 import { Link } from "react-router-dom";
+import { getThemeClasses } from "../utils/themes";
 
 const premiumFeatures = [
   {
@@ -66,7 +67,9 @@ const PremiumPage = () => {
   const { user, subscription, updateSubscription } = useUser();
   const [selectedTier, setSelectedTier] = useState(null);
   const [error, setError] = useState("");
+  const [trialCode, setTrialCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { themeClasses } = getThemeClasses();
 
   const handlePurchase = async () => {
     if (!selectedTier) return;
@@ -76,7 +79,7 @@ const PremiumPage = () => {
 
     try {
       const response = await fetch(
-        "http://${import.meta.env.VITE_API_BASE}/api/create-checkout-session",
+        `${import.meta.env.VITE_API_BASE_URL}/create-checkout-session`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -103,15 +106,69 @@ const PremiumPage = () => {
     }
   };
 
+  const handleRedeemTrial = async () => {
+    if (!user) {
+      setError("You must be signed in to redeem a trial code.");
+      return;
+    }
+
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/redeem-trial`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({ code: trialCode }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to redeem code");
+      }
+
+      // Update local subscription state
+      if (updateSubscription) updateSubscription();
+
+      setTrialCode("");
+      alert("🎉 Trial activated! Enjoy LBT Plus for free.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const hasActiveSubscription =
     subscription?.isActive && (subscription.daysRemaining || 0) > 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-8 px-4 sm:px-6 lg:px-8">
+    <div
+      className="min-h-screen py-8 px-4 sm:px-6 lg:px-8"
+      style={{
+        background: `linear-gradient(135deg,
+        #ff00cc,   /* hot pink */
+        #6a0dad,   /* dark violet */
+        #0077ff,   /* bright blue */
+        #00cc99,   /* teal */
+        #ffcc00,   /* gold */
+        #ff6600    /* orange */
+      )`,
+        backgroundSize: "300% 300%",
+        animation: "rainbowShift 8s ease infinite",
+      }}
+    >
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-linear-to-r from-purple-600 to-indigo-600 text-white mb-4">
             <Star className="w-8 h-8" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -150,7 +207,7 @@ const PremiumPage = () => {
           </div>
         )}
 
-        {/* Features */}
+        {/* Features — now with consistent premium colors */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
           {premiumFeatures.map((feature, index) => (
             <div
@@ -158,7 +215,7 @@ const PremiumPage = () => {
               className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
             >
               <div className="flex items-start space-x-4">
-                <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                <div className="shrink-0 w-12 h-12 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
                   {feature.icon}
                 </div>
                 <div>
@@ -208,7 +265,6 @@ const PremiumPage = () => {
                   </p>
                 </div>
 
-                {/* Authenticated: show Subscribe button */}
                 {user ? (
                   <>
                     {error && (
@@ -232,7 +288,6 @@ const PremiumPage = () => {
                     </div>
                   </>
                 ) : (
-                  /* Not authenticated: show sign-in prompt */
                   <div className="max-w-md mx-auto space-y-4">
                     <div className="text-center">
                       <Link
@@ -260,7 +315,41 @@ const PremiumPage = () => {
                 Select a plan to continue
               </p>
             )}
-
+            <br></br>
+            {/* 🔑 Trial Code Redemption */}
+            {!hasActiveSubscription && (
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200 max-w-md mx-auto">
+                <h3 className="font-medium text-gray-900 text-center mb-3">
+                  Have a trial code?
+                </h3>
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    placeholder="Enter code (e.g. TRIAL-ABC123)"
+                    value={trialCode}
+                    onChange={(e) => {
+                      setTrialCode(e.target.value.trim().toUpperCase());
+                      setError("");
+                    }}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    disabled={isSubmitting}
+                  />
+                  <button
+                    onClick={handleRedeemTrial}
+                    disabled={!trialCode || isSubmitting}
+                    className="px-4 py-2 bg-gray-800 text-white rounded-lg text-sm hover:bg-gray-900 disabled:opacity-60"
+                  >
+                    Redeem
+                  </button>
+                </div>
+                {error && (
+                  <p className="text-red-600 text-xs mt-2 flex items-center">
+                    <AlertCircle className="w-3 h-3 mr-1" />
+                    {error}
+                  </p>
+                )}
+              </div>
+            )}
             <p className="text-center text-xs text-gray-500 mt-6">
               Subscriptions renew automatically unless cancelled. Manage or
               cancel anytime in your account settings.

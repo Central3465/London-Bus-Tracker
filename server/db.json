@@ -9,21 +9,8 @@
         "isActive": true,
         "plan": "Monthly",
         "daysRemaining": 30,
-        "expiresAt": "2025-11-20T20:40:54.191Z",
-        "stripeSubscriptionId": "sub_1SKmLiGsGX4c72uBJwHbgNoV"
-      }
-    },
-    "hanlinbai": {
-      "id": "hanlinbai",
-      "email": "hanlinbai@hotmail.com",
-      "name": "Hanlin Bai",
-      "password": "123123",
-      "subscription": {
-        "isActive": true,
-        "plan": "Yearly",
-        "daysRemaining": 365,
-        "expiresAt": "2026-10-21T21:15:53.174Z",
-        "stripeSubscriptionId": "sub_1SKmuAGsGX4c72uBsWdsIhQJ"
+        "expiresAt": "2025-11-21T17:30:37.584Z",
+        "stripeSubscriptionId": "sub_1SL5riGsGX4c72uBgI4kdWCQ"
       }
     },
     "andrewhick": {
@@ -37,7 +24,35 @@
         "daysRemaining": 0,
         "expiresAt": null,
         "stripeSubscriptionId": null
-      }
+      },
+      "banned": true,
+      "banReason": "fucking dickhead",
+      "bannedAt": "2025-10-24T11:34:58.033Z"
+    }
+  },
+  "trialCodes": {
+    "TRIAL-OZFQH0": {
+      "expiresAt": "2025-10-30T20:17:18.798Z",
+      "usedBy": null,
+      "maxDays": 2
+    },
+    "TRIAL-83TGI9": {
+      "expiresAt": "2025-10-30T20:21:27.266Z",
+      "usedBy": "andrewhick",
+      "maxDays": 2
+    },
+    "TRIAL-EN909S": {
+      "expiresAt": "2025-10-30T20:41:22.039Z",
+      "usedBy": "andrewhick",
+      "maxDays": 1
+    },
+    "TRIAL-MMB7L3": {
+      "expiresAt": "2025-10-30T21:17:54.129Z",
+      "maxDays": 1,
+      "maxUses": 1,
+      "usedBy": [
+        "legendbai"
+      ]
     }
   }
 }

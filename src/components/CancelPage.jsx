@@ -2,6 +2,7 @@
 import React from 'react';
 import { XCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useTheme } from "../contexts/ThemeContext";
 
 const CancelPage = () => {
   return (
