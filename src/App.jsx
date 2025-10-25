@@ -108,6 +108,9 @@ const App = () => {
   const [fromSuggestions, setFromSuggestions] = useState([]);
   const [toSuggestions, setToSuggestions] = useState([]);
 
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef(null);
+
   const { theme, setTheme, themeClasses } = useTheme();
 
   const appIconMap = {
@@ -151,6 +154,16 @@ const App = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target)) {
+        setIsMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   useCustomAlerts({
     fleet: myFleet,
     favoriteStops,
@@ -168,7 +181,8 @@ const App = () => {
     },
   });
 
-  const tabs = [
+  // Primary tabs (always shown)
+  const primaryTabs = [
     { id: "live", label: "Live Buses", icon: Bus, path: "/live" },
     { id: "my-routes", label: "My Routes", icon: Clock, path: "/my-routes" },
     {
@@ -178,26 +192,8 @@ const App = () => {
       path: "/journey",
     },
     {
-      id: "vehicle",
-      label: "Vehicle Tracker",
-      icon: Navigation,
-      path: "/vehicle",
-    },
-    {
-      id: "fleet",
-      label: "My Fleet",
-      icon: Star,
-      path: "/fleet",
-    },
-    {
-      id: "route-replay",
-      label: "Route Replay",
-      icon: Clock,
-      path: "/route-replay",
-    },
-    {
       id: "disruptions",
-      label: "Service Disruptions",
+      label: "Disruptions",
       icon: AlertTriangle,
       path: "/disruptions",
     },
@@ -207,8 +203,27 @@ const App = () => {
       icon: SettingsIcon,
       path: "/settings",
     },
+  ];
+
+  // Hidden under "More"
+  const moreTabs = [
+    {
+      id: "vehicle",
+      label: "Vehicle Tracker",
+      icon: Navigation,
+      path: "/vehicle",
+    },
+    { id: "fleet", label: "My Fleet", icon: Star, path: "/fleet" },
+    {
+      id: "route-replay",
+      label: "Route Replay",
+      icon: Clock,
+      path: "/route-replay",
+    },
     { id: "plus", label: "LBT Plus", icon: Star, path: "/plus" },
   ];
+
+  const allTabs = [...primaryTabs, ...moreTabs];
 
   const searchTimeoutRef = useRef(null);
   const locationTimeoutRef = useRef(null);
@@ -790,7 +805,8 @@ const App = () => {
             </div>
 
             <div className="hidden md:flex space-x-1 bg-white/10 p-1 rounded-xl backdrop-blur-sm">
-              {tabs.map((tab) => (
+              {/* Primary tabs */}
+              {primaryTabs.map((tab) => (
                 <Link
                   key={tab.id}
                   to={tab.path}
@@ -804,12 +820,53 @@ const App = () => {
                 >
                   <tab.icon className="w-4 h-4 mb-1" />
                   <span className="hidden lg:block">{tab.label}</span>
-                  <span className="lg:hidden">
-                    {tab.label.split(" ")[0]}
-                  </span>{" "}
-                  {/* e.g., "Journey" → "Journey", "Route Replay" → "Route" */}
+                  <span className="lg:hidden">{tab.label.split(" ")[0]}</span>
                 </Link>
               ))}
+
+              {/* More dropdown */}
+              <div className="relative" ref={moreMenuRef}>
+                <button
+                  onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
+                  className={`flex flex-col items-center justify-center px-3 py-2 rounded-lg font-medium text-xs transition-all min-w-[60px] ${
+                    isMoreMenuOpen
+                      ? "bg-blue-600 text-white shadow-md"
+                      : `${getTextColor(
+                          "text-gray-600"
+                        )} hover:text-gray-900 hover:bg-gray-100/50`
+                  }`}
+                  aria-haspopup="true"
+                  aria-expanded={isMoreMenuOpen}
+                >
+                  <Menu className="w-4 h-4 mb-1" />
+                  <span className="hidden lg:block">More</span>
+                  <span className="lg:hidden">More</span>
+                </button>
+
+                {/* Dropdown menu */}
+                {isMoreMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10 py-1">
+                    {moreTabs.map((tab) => (
+                      <Link
+                        key={tab.id}
+                        to={tab.path}
+                        onClick={() => {
+                          setIsMoreMenuOpen(false);
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className={`flex items-center space-x-3 px-4 py-2 text-sm font-medium ${
+                          window.location.pathname === tab.path
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        }`}
+                      >
+                        <tab.icon className="w-4 h-4" />
+                        <span>{tab.label}</span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* ... mobile menu button remains the same */}
@@ -842,11 +899,11 @@ const App = () => {
           {isMobileMenuOpen && (
             <div className="md:hidden mt-2 pb-4 border-t border-gray-100">
               <div className="flex flex-col space-y-2 pt-2">
-                {tabs.map((tab) => (
+                {allTabs.map((tab) => (
                   <Link
                     key={tab.id}
                     to={tab.path}
-                    onClick={() => setIsMobileMenuOpen(false)} // Close menu on click
+                    onClick={() => setIsMobileMenuOpen(false)}
                     className={`flex items-center space-x-3 px-4 py-3 rounded-lg font-medium ${
                       window.location.pathname === tab.path
                         ? "bg-blue-600 text-white"
@@ -907,10 +964,11 @@ const App = () => {
                 <LiveBusView
                   selectedStop={selectedStop}
                   liveArrivals={liveArrivals}
-                  scheduledDepartures={scheduledDepartures}
+                  scheduledDepartures={scheduledDepartures} // 👈 This is crucial for the "Scheduled" tab
+                  fetchVehicleDetails={fetchVehicleDetails}
                   searchQuery={searchQuery}
                   setSearchQuery={setSearchQuery}
-                  hasPlus={subscription?.isActive}
+                  hasPlus={subscription?.isActive} // 👈 For crowding/insight
                   refreshData={refreshData}
                   isRefreshing={isRefreshing}
                   loading={loading}
@@ -930,7 +988,6 @@ const App = () => {
                   theme={theme}
                   getInputTextColor={getInputTextColor}
                   getInputBgAndBorder={getInputBgAndBorder}
-                  fetchVehicleDetails={fetchVehicleDetails}
                 />
               }
             />
