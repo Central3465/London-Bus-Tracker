@@ -1,5 +1,20 @@
 export const CHANGELOG = [
   {
+    version: "v1.2.0",
+    date: "2025-10-25",
+    highlights: ["Improvement & Hotfix!"],
+    entries: [
+      {
+        type: "improvement",
+        text: "We have updated the LiveBusView page to be cleaner and more minimised.",
+      },
+      {
+        type: "feature",
+        text: "We have added a Submit a Request form for you to submit your suggestions, bug reports and any inquiries."
+      }
+    ],
+  },
+  {
     version: "v1.1.0",
     date: "2025-10-24",
     highlights: ["Hotfixes!"],

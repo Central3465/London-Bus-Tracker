@@ -23,6 +23,7 @@ import { useTheme } from "./contexts/ThemeContext";
 import BusMap from "./BusMap";
 import LiveBusView from "./components/LiveBusView";
 import RouteReplay from "./components/RouteReply";
+import SubmitRequest from "./components/SubmitRequest";
 import JourneyPlanner from "./components/JourneyPlanner";
 import EnthusiastHub from "./components/EnthusiastHub";
 import VehicleTrackerView from "./components/VehicleTrackerView";
@@ -221,6 +222,12 @@ const App = () => {
       path: "/route-replay",
     },
     { id: "plus", label: "LBT Plus", icon: Star, path: "/plus" },
+    {
+      id: "submit-request",
+      label: "Submit Request",
+      icon: Info, // or use a different icon like MessageSquare if you prefer
+      path: "/submit-request",
+    },
   ];
 
   const allTabs = [...primaryTabs, ...moreTabs];
@@ -1042,6 +1049,7 @@ const App = () => {
             />
 
             <Route path="/route-replay" element={<RouteReplay />} />
+            <Route path="/submit-request" element={<SubmitRequest />} />
 
             <Route
               path="/vehicle"

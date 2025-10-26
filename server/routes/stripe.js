@@ -655,4 +655,29 @@ router.post(
   }
 );
 
+// 🆕 SUBMIT REQUEST ROUTE
+router.post("/submit-request", async (req, res) => {
+  const { type, subject, message, email } = req.body;
+
+  if (!type || !subject || !message) {
+    return res.status(400).json({ error: "Type, subject, and message are required." });
+  }
+
+  const logFilePath = path.join(__dirname, "..", "logs", "user_requests.log");
+
+  await fs.ensureDir(path.dirname(logFilePath));
+
+  const timestamp = new Date().toISOString();
+  const logEntry = `[${timestamp}] Type: ${type} | Subject: ${subject} | Email: ${email || "N/A"}\nMessage: ${message}\n---\n`;
+
+  try {
+    await fs.appendFile(logFilePath, logEntry, "utf8");
+
+    res.json({ success: true, message: "Request received successfully." });
+  } catch (err) {
+    console.error("Error saving request:", err);
+    res.status(500).json({ error: "Failed to save your request. Please try again." });
+  }
+});
+
 module.exports = router;
