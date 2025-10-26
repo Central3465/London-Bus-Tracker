@@ -114,7 +114,7 @@ const MyRoutesTab = ({
       if (!hasPlus) {
         // Optional: show a one-time message
         if (!localStorage.getItem("commuteLinkPrompted")) {
-          alert("This shared commute requires LBT Plus. Upgrade to view!");
+          alert("This shared commute requires Travelut Plus. Upgrade to view!");
           localStorage.setItem("commuteLinkPrompted", "true");
         }
         return;
@@ -653,7 +653,7 @@ const MyRoutesTab = ({
                           className="mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
                         >
                           <Zap className="w-3 h-3" />
-                          Unlock all arrivals with LBT Plus
+                          Unlock all arrivals with Travelut Plus
                         </button>
                       )}
                     </div>

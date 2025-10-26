@@ -15,7 +15,7 @@ const Navigation = () => {
           <div className="flex">
             <div className="shrink-0 flex items-center">
               <Link to="/" className="text-2xl font-bold text-indigo-600">
-                London Bus Tracker
+                Travelut
               </Link>
             </div>
             <div className="hidden sm:ml-6 sm:flex sm:space-x-8">

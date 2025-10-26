@@ -11,6 +11,10 @@ export const CHANGELOG = [
       {
         type: "improvement",
         text: "The Location UI is now hidden once it knows your location."
+      },
+      {
+        type: "improvement",
+        text: "We have now rebranded from London Bus Tracker (LBT) to Travelut!"
       }
     ],
   },

@@ -347,7 +347,7 @@ const ServiceDisruptionsTab = ({theme}) => {
           <div>
             <h4 className="font-medium text-blue-900">Get Real-Time Alerts</h4>
             <p className="text-sm text-blue-700 mt-1">
-              <strong>LBT Plus members</strong> can enable browser notifications
+              <strong>Travelut Plus members</strong> can enable browser notifications
               for live disruption alerts. Go to{" "}
               <strong>Settings → Service Alerts</strong> to turn them on.
             </p>

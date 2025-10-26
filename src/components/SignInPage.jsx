@@ -38,7 +38,7 @@ const SignInPage = () => {
             <Lock className="w-8 h-8" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Sign In</h1>
-          <p className="mt-2 text-gray-600">Welcome back to London Bus Tracker</p>
+          <p className="mt-2 text-gray-600">Welcome back to Travelut</p>
         </div>
 
         {/* Notification Banner */}

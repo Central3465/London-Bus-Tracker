@@ -131,7 +131,7 @@ const MyFleetTracker = () => {
     if (!vehicleInput.trim()) return;
 
     if (!hasPlus) {
-      setError("Save vehicles to your fleet with LBT Plus!");
+      setError("Save vehicles to your fleet with Travelut Plus!");
       return;
     }
 
@@ -214,7 +214,7 @@ const MyFleetTracker = () => {
           className="flex items-center justify-center gap-2 bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium px-5 py-2.5 rounded-lg shadow-sm transition-all transform hover:scale-[1.02]"
         >
           <CreditCard className="w-4 h-4" />
-          Unlock with LBT Plus
+          Unlock with Travelut Plus
         </button>
         <p className="text-xs text-gray-400 mt-2">
           Already subscribed? Refresh or check your account.

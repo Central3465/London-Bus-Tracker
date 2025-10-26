@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">London Bus Tracker</string>
+    <string name="title_activity_main">London Bus Tracker</string>
+    <string name="package_name">com.hanlinbai.londonbus</string>
+    <string name="custom_url_scheme">com.hanlinbai.londonbus</string>
+</resources>

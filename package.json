@@ -14,6 +14,12 @@
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/cli": "^7.4.4",
+    "@capacitor/core": "^7.4.4",
+    "@capacitor/geolocation": "^7.1.5",
+    "@capacitor/ios": "^7.4.4",
+    "@capacitor/push-notifications": "^7.0.3",
     "@tailwindcss/postcss": "^4.1.14",
     "@xmldom/xmldom": "^0.8.11",
     "leaflet": "^1.9.4",

@@ -138,7 +138,7 @@ const PremiumPage = () => {
       if (updateSubscription) updateSubscription();
 
       setTrialCode("");
-      alert("🎉 Trial activated! Enjoy LBT Plus for free.");
+      alert("🎉 Trial activated! Enjoy Travelut Plus for free.");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -172,7 +172,7 @@ const PremiumPage = () => {
             <Star className="w-8 h-8" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">
-            London Bus Tracker <span className="text-indigo-600">Plus</span>
+            Travelut <span className="text-indigo-600">Plus</span>
           </h1>
           <p className="mt-3 text-lg text-gray-600 max-w-2xl mx-auto">
             {hasActiveSubscription
@@ -187,7 +187,7 @@ const PremiumPage = () => {
             <div className="flex flex-col items-center justify-center space-y-2">
               <div className="flex items-center space-x-2 text-green-700 font-semibold text-lg">
                 <CheckCircle className="w-6 h-6" />
-                <span>LBT Plus Active</span>
+                <span>Travelut Plus Active</span>
               </div>
               <p className="text-green-600 flex items-center space-x-1">
                 <Calendar className="w-4 h-4" />
@@ -358,14 +358,14 @@ const PremiumPage = () => {
         ) : (
           <div className="text-center mb-8">
             <p className="text-gray-600">
-              Thank you for supporting London Bus Tracker! 🚌✨
+              Thank you for supporting Travelut! 🚌✨
             </p>
           </div>
         )}
 
         <div className="text-center text-sm text-gray-500">
           <p>
-            Core bus tracking remains free. LBT Plus unlocks advanced features.
+            Core bus tracking remains free. Travelut Plus unlocks advanced features.
           </p>
         </div>
       </div>

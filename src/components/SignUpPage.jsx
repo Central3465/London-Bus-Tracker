@@ -49,7 +49,7 @@ const SignUpPage = () => {
             <User className="w-8 h-8" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Create Account</h1>
-          <p className="mt-2 text-gray-600">Join London Bus Tracker today</p>
+          <p className="mt-2 text-gray-600">Join Travelut today</p>
         </div>
 
         {/* Notification Banner */}

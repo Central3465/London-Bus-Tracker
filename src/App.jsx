@@ -1,5 +1,6 @@
 // src/App.jsx
 import React, { useState, useEffect, useRef } from "react";
+import { Geolocation } from "@capacitor/geolocation";
 import {
   Search,
   MapPin,
@@ -25,6 +26,8 @@ import LiveBusView from "./components/LiveBusView";
 import RouteReplay from "./components/RouteReply";
 import SubmitRequest from "./components/SubmitRequest";
 import JourneyPlanner from "./components/JourneyPlanner";
+import PrivacyPolicy from "./components/PrivacyPolicy";
+import TermsOfService from "./components/TermsOfService";
 import EnthusiastHub from "./components/EnthusiastHub";
 import VehicleTrackerView from "./components/VehicleTrackerView";
 import BusMapComponent from "./components/BusMapComponent";
@@ -221,12 +224,24 @@ const App = () => {
       icon: Clock,
       path: "/route-replay",
     },
-    { id: "plus", label: "LBT Plus", icon: Star, path: "/plus" },
+    { id: "plus", label: "Travelut Plus", icon: Star, path: "/plus" },
     {
       id: "submit-request",
       label: "Submit Request",
       icon: Info, // or use a different icon like MessageSquare if you prefer
       path: "/submit-request",
+    },
+    {
+      id: "privacy",
+      label: "Privacy Policy",
+      icon: Info,
+      path: "/privacy-policy",
+    },
+    {
+      id: "terms",
+      label: "Terms of Service",
+      icon: Info,
+      path: "/terms-of-service",
     },
   ];
 
@@ -391,7 +406,7 @@ const App = () => {
     return () => clearInterval(interval);
   }, [hasPlus]);
 
-  const getCurrentLocation = () => {
+  const getCurrentLocation = async () => {
     if (!navigator.geolocation) {
       setLocationError("Geolocation is not supported by your browser");
       return;
@@ -399,6 +414,10 @@ const App = () => {
 
     setLoading(true);
     setLocationError(null);
+
+    const position = await Geolocation.getCurrentPosition();
+    const { latitude, longitude } = position.coords;
+    setUserLocation({ lat: latitude, lng: longitude });
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -672,9 +691,9 @@ const App = () => {
                     Support This Free Service
                   </h2>
                   <p className="text-gray-600 text-center mb-6">
-                    We use Google AdSense to keep London Bus Tracker free for
-                    everyone. Please consider disabling your ad blocker — it
-                    really helps us out!
+                    We use Google AdSense to keep Travelut free for everyone.
+                    Please consider disabling your ad blocker — it really helps
+                    us out!
                   </p>
                   <div className="space-y-3">
                     <button
@@ -806,7 +825,7 @@ const App = () => {
                     "text-gray-900"
                   )}`}
                 >
-                  London Bus Tracker
+                  Travelut
                 </h1>
               </div>
             </div>
@@ -1088,6 +1107,8 @@ const App = () => {
             <Route path="/cancel" element={<CancelPage />} />
             <Route path="/signin" element={<SignInPage />} />
             <Route path="/signup" element={<SignUpPage />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/terms-of-service" element={<TermsOfService />} />
 
             {/* Optional: Add a catch-all route for 404 */}
             <Route path="*" element={<NotFoundPage></NotFoundPage>} />

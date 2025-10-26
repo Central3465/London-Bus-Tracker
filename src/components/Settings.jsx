@@ -47,7 +47,7 @@ const PlusBanner = ({ subscription }) => (
     <div className="flex items-center gap-3">
       <Star className="w-6 h-6" />
       <div>
-        <h3 className="font-bold">LBT Plus Active</h3>
+        <h3 className="font-bold">Travelut Plus Active</h3>
         <p className="text-purple-100 text-sm">
           {subscription.daysRemaining} day
           {subscription.daysRemaining !== 1 ? "s" : ""} remaining
@@ -580,7 +580,7 @@ const AlertSection = ({
 
       {!hasPlus && (
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-          🔒 Available with <span className="font-medium">LBT Plus</span>
+          🔒 Available with <span className="font-medium">Travelut Plus</span>
         </p>
       )}
     </div>
@@ -591,7 +591,7 @@ const LockedSection = ({ feature, navigate }) => (
   <div className="flex flex-col items-center justify-center py-12 text-center min-h-[300px]">
     <Lock className="w-12 h-12 text-gray-400 mb-4" />
     <p className="text-gray-600 mb-4">
-      Unlock <span className="font-bold">{feature}</span> with LBT Plus
+      Unlock <span className="font-bold">{feature}</span> with Travelut Plus
     </p>
     <button
       onClick={() => navigate("/plus")}
@@ -1086,7 +1086,7 @@ const AppearanceSection = ({
         >
           Appearance
           <span className="text-xs font-medium px-2 py-1 bg-purple-100 text-purple-800 rounded-full">
-            LBT Plus
+            Travelut Plus
           </span>
           <span className="text-xs font-medium px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full">
             Beta
@@ -1179,7 +1179,7 @@ const AppearanceSection = ({
                 <p
                   className={`text-sm ${currentThemeClasses.textSecondary} mt-1`}
                 >
-                  Let LBT automatically switch to festive icons during holidays.
+                  Let Travelut automatically switch to festive icons during holidays.
                 </p>
               </div>
               <button
@@ -1284,7 +1284,7 @@ const AppearanceSection = ({
               <p
                 className={`text-sm ${currentThemeClasses.textSecondary} mt-1`}
               >
-                Let LBT automatically switch to festive thems during holidays.
+                Let Travelut automatically switch to festive thems during holidays.
               </p>
             </div>
             <button
@@ -1321,7 +1321,7 @@ const AppearanceSection = ({
           <Lock className="w-12 h-12 text-white mb-4" />
           <p className="text-white text-center px-4 max-w-xs">
             Unlock custom themes with{" "}
-            <span className="font-bold">LBT Plus</span>
+            <span className="font-bold">Travelut Plus</span>
           </p>
           <button
             onClick={() => navigate("/plus")}
@@ -1344,7 +1344,7 @@ const SubscriptionSection = ({ subscription, currentThemeClasses }) => (
     >
       Subscription
       <span className="text-xs font-medium px-2 py-1 bg-purple-100 text-purple-800 rounded-full">
-        LBT Plus
+        Travelut Plus
       </span>
     </h3>
     <div className="space-y-4">
@@ -1693,7 +1693,7 @@ const SettingsPage = ({ currentTheme, onThemeChange }) => {
           <AlertTriangle className="w-5 h-5 text-yellow-600" />
           Service Disruption Alerts
           <span className="text-xs font-medium px-2 py-1 bg-purple-100 text-purple-800 rounded-full">
-            LBT Plus
+            Travelut Plus
           </span>
         </h3>
         <p className={`${currentThemeClasses.textSecondary} mb-6`}>
