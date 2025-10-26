@@ -4,7 +4,7 @@ import {
   MapPin,
   Clock,
   Bus,
-  Map,
+  Map as MapIcon,
   Locate,
   WifiOff,
   AlertCircle,
@@ -56,6 +56,8 @@ const LiveBusView = ({
   const [journeyDataSource, setJourneyDataSource] = useState("");
   const [isTrackingVehicle, setIsTrackingVehicle] = useState(false);
   const [showMap, setShowMap] = useState(externalShowMap || false);
+  const [showAllStopsMap, setShowAllStopsMap] = useState(false);
+  const [selectedStopForMap, setSelectedStopForMap] = useState(null);
   const { themeClasses } = useTheme();
 
   // Sync external showMap if needed
@@ -63,22 +65,52 @@ const LiveBusView = ({
     if (setExternalShowMap) setShowMap(externalShowMap);
   }, [externalShowMap]);
 
+  const scheduledArrivalsByStop = useMemo(() => {
+    if (!scheduledDepartures?.length) return new Map();
+
+    const map = new Map();
+
+    // Sort each stop's list
+    for (let [key, arrivals] of map) {
+      map.set(
+        key,
+        arrivals.sort(
+          (a, b) => new Date(a.scheduledArrival) - new Date(b.scheduledArrival)
+        )
+      );
+    }
+
+    scheduledDepartures.forEach((trip) => {
+      (trip.times || []).forEach((stopTime) => {
+        const stopId = stopTime.stop?.atco_code;
+        if (!stopId) return;
+
+        const arrival = {
+          lineId: trip.service?.line_name || "Unknown",
+          destinationName: trip.headsign || "Unknown",
+          scheduledArrival: stopTime.aimed_departure_time
+            ? `${new Date().toISOString().split("T")[0]}T${
+                stopTime.aimed_departure_time
+              }`
+            : null,
+          isScheduled: true,
+          tripId: trip.id,
+          naptanId: stopId, // crucial!
+        };
+
+        if (!map.has(stopId)) map.set(stopId, []);
+        map.get(stopId).push(arrival);
+      });
+    });
+
+    return map;
+  }, [scheduledDepartures]);
+
   // --- Derived data ---
   const scheduledArrivalsForStop = useMemo(() => {
-    if (!selectedStop || !scheduledDepartures?.length) return [];
-    const stopId = selectedStop.naptanId;
-    return scheduledDepartures.flatMap((trip) =>
-      (trip.times || []).filter(t => t.stop?.atco_code === stopId).map(stopTime => ({
-        lineId: trip.service?.line_name || "Unknown",
-        destinationName: trip.headsign || "Unknown",
-        scheduledArrival: stopTime.aimed_departure_time
-          ? `${new Date().toISOString().split("T")[0]}T${stopTime.aimed_departure_time}`
-          : null,
-        isScheduled: true,
-        tripId: trip.id,
-      }))
-    ).sort((a, b) => new Date(a.scheduledArrival) - new Date(b.scheduledArrival));
-  }, [scheduledDepartures, selectedStop]);
+    if (!selectedStop) return [];
+    return scheduledArrivalsByStop.get(selectedStop.naptanId) || [];
+  }, [selectedStop, scheduledArrivalsByStop]);
 
   const combinedArrivals = useMemo(() => {
     return [...liveArrivals, ...scheduledArrivalsForStop].sort((a, b) => {
@@ -89,9 +121,14 @@ const LiveBusView = ({
   }, [liveArrivals, scheduledArrivalsForStop]);
 
   const filteredStops = useMemo(() => {
-    return nearestStops.filter(stop =>
-      (stop.commonName?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
-      (stop.indicator?.toLowerCase() || "").includes(searchQuery.toLowerCase())
+    return nearestStops.filter(
+      (stop) =>
+        (stop.commonName?.toLowerCase() || "").includes(
+          searchQuery.toLowerCase()
+        ) ||
+        (stop.indicator?.toLowerCase() || "").includes(
+          searchQuery.toLowerCase()
+        )
     );
   }, [nearestStops, searchQuery]);
 
@@ -101,10 +138,20 @@ const LiveBusView = ({
       arrivals.map(async (arrival) => {
         if (arrival.stopPoint?.commonName) return arrival;
         try {
-          const res = await fetch(`https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(arrival.naptanId || "")}`);
+          const res = await fetch(
+            `https://api.tfl.gov.uk/StopPoint/${encodeURIComponent(
+              arrival.naptanId || ""
+            )}`
+          );
           if (!res.ok) return arrival;
           const data = await res.json();
-          return { ...arrival, stopPoint: { ...data, commonName: data.commonName || data.name || arrival.naptanId } };
+          return {
+            ...arrival,
+            stopPoint: {
+              ...data,
+              commonName: data.commonName || data.name || arrival.naptanId,
+            },
+          };
         } catch {
           return arrival;
         }
@@ -112,18 +159,40 @@ const LiveBusView = ({
     );
   };
 
+  // Get first 3 arrivals for a specific stop
+  const getArrivalsForStop = (stop) => {
+    if (!stop) return [];
+
+    const liveForStop = liveArrivals.filter(
+      (arr) => arr.naptanId === stop.naptanId
+    );
+
+    const scheduledForStop = scheduledArrivalsByStop.get(stop.naptanId) || [];
+
+    const all = [...liveForStop, ...scheduledForStop].sort((a, b) => {
+      const timeA = new Date(a.expectedArrival || a.scheduledArrival);
+      const timeB = new Date(b.expectedArrival || b.scheduledArrival);
+      return timeA - timeB;
+    });
+
+    return all.slice(0, 3);
+  };
+
   const fetchScheduledTrip = async (lineId) => {
     setJourneyDataLoading(true);
     try {
       const { error, data } = await fetchTflRouteSequence(lineId);
       if (!error && data) {
-        const stops = data.stopPointSequences?.[0]?.stopPoints || data.stations || [];
-        setVehicleJourneyData(stops.map(s => ({
-          id: s.naptanId || s.id,
-          name: s.commonName || s.name || "Unknown",
-          lat: s.lat,
-          lon: s.lon,
-        })));
+        const stops =
+          data.stopPointSequences?.[0]?.stopPoints || data.stations || [];
+        setVehicleJourneyData(
+          stops.map((s) => ({
+            id: s.naptanId || s.id,
+            name: s.commonName || s.name || "Unknown",
+            lat: s.lat,
+            lon: s.lon,
+          }))
+        );
         setJourneyDataSource("tfl");
       } else {
         setVehicleJourneyData([]);
@@ -163,12 +232,16 @@ const LiveBusView = ({
     setIsTrackingVehicle(false);
   };
 
-  const toggleTimeFormat = () => setTimeFormat(prev => prev === "minutes" ? "clock" : "minutes");
+  const toggleTimeFormat = () =>
+    setTimeFormat((prev) => (prev === "minutes" ? "clock" : "minutes"));
 
   const formatStopTime = (isoString) => {
     if (!isoString) return "N/A";
     if (timeFormat === "clock") {
-      return new Date(isoString).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return new Date(isoString).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     } else {
       const diffMins = Math.round((new Date(isoString) - Date.now()) / 60000);
       if (diffMins < 0) return `${-diffMins} min ago`;
@@ -189,12 +262,17 @@ const LiveBusView = ({
     );
 
     return (
-      <div className={`fixed inset-0 ${themeClasses.bg} bg-opacity-50 flex items-center justify-center z-50 p-4`}>
+      <div
+        className={`fixed inset-0 ${themeClasses.bg} bg-opacity-50 flex items-center justify-center z-50 p-4`}
+      >
         {/* Service Details Modal */}
         <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
           <div className="sticky top-0 bg-white p-4 border-b border-gray-200 flex items-center justify-between">
             <h3 className="text-lg font-bold text-gray-800">Service Details</h3>
-            <button onClick={closeDetailedView} className="p-1 rounded-full hover:bg-gray-100">
+            <button
+              onClick={closeDetailedView}
+              className="p-1 rounded-full hover:bg-gray-100"
+            >
               <X className="w-5 h-5 text-gray-600" />
             </button>
           </div>
@@ -205,25 +283,42 @@ const LiveBusView = ({
                 {selectedArrival.lineId?.toUpperCase()}
               </div>
               <div>
-                <p className="font-medium text-gray-800">To {selectedArrival.destinationName}</p>
-                <p className="text-sm text-gray-500">Service {selectedArrival.lineId?.toUpperCase()}</p>
+                <p className="font-medium text-gray-800">
+                  To {selectedArrival.destinationName}
+                </p>
+                <p className="text-sm text-gray-500">
+                  Service {selectedArrival.lineId?.toUpperCase()}
+                </p>
               </div>
             </div>
 
             <div className="mt-3 space-y-2 text-sm">
-              {selectedArrival.vehicleId && <p><span className="font-medium">Registration:</span> {selectedArrival.vehicleId}</p>}
-              {selectedArrival.vehicleFleetNumber && <p><span className="font-medium">Fleet Number:</span> {selectedArrival.vehicleFleetNumber}</p>}
+              {selectedArrival.vehicleId && (
+                <p>
+                  <span className="font-medium">Registration:</span>{" "}
+                  {selectedArrival.vehicleId}
+                </p>
+              )}
+              {selectedArrival.vehicleFleetNumber && (
+                <p>
+                  <span className="font-medium">Fleet Number:</span>{" "}
+                  {selectedArrival.vehicleFleetNumber}
+                </p>
+              )}
             </div>
 
             <div className="mt-3 flex items-center space-x-2">
               <span className="font-medium">Status:</span>
               <span className={`text-sm font-medium ${serviceStatus.color}`}>
                 {serviceStatus.status}
-                {serviceStatus.status !== "On Time" && serviceStatus.minutes > 0 && ` by ${serviceStatus.minutes} min`}
+                {serviceStatus.status !== "On Time" &&
+                  serviceStatus.minutes > 0 &&
+                  ` by ${serviceStatus.minutes} min`}
               </span>
             </div>
 
-            {(liveVehicleJourney?.length > 0 || vehicleJourneyData?.length > 0) && (
+            {(liveVehicleJourney?.length > 0 ||
+              vehicleJourneyData?.length > 0) && (
               <div className="mt-4">
                 <button
                   onClick={() => setIsTrackingVehicle(true)}
@@ -241,13 +336,18 @@ const LiveBusView = ({
                 onClick={toggleTimeFormat}
                 className="flex items-center space-x-1 p-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-xs"
               >
-                {timeFormat === "minutes" ? <CalendarClock className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                {timeFormat === "minutes" ? (
+                  <CalendarClock className="w-3 h-3" />
+                ) : (
+                  <Clock className="w-3 h-3" />
+                )}
                 <span>{timeFormat === "minutes" ? "HH:MM" : "Min"}</span>
               </button>
             </div>
 
             <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
-              <Navigation className="w-5 h-5 mr-2 text-blue-600" /> Full Route Schedule
+              <Navigation className="w-5 h-5 mr-2 text-blue-600" /> Full Route
+              Schedule
             </h4>
 
             {journeyDataLoading ? (
@@ -263,16 +363,33 @@ const LiveBusView = ({
                   <span className="min-w-20 text-right">Actual</span>
                 </div>
                 {liveVehicleJourney.map((stop, i) => {
-                  const scheduled = vehicleJourneyData?.find(s => s.id === stop.naptanId);
+                  const scheduled = vehicleJourneyData?.find(
+                    (s) => s.id === stop.naptanId
+                  );
                   const scheduledTime = scheduled?.aimedArrival
-                    ? `${new Date().toISOString().split("T")[0]}T${scheduled.aimedArrival}`
+                    ? `${new Date().toISOString().split("T")[0]}T${
+                        scheduled.aimedArrival
+                      }`
                     : null;
                   return (
-                    <div key={i} className={`flex justify-between p-3 border-b last:border-b-0 ${i === 0 ? "bg-blue-100" : ""}`}>
-                      {i === 0 && <Bus className="w-4 h-4 text-blue-600 mr-2" />}
-                      <span className="flex-1">{i + 1}. {stop.stopPoint?.commonName || stop.naptanId}</span>
-                      <span className="min-w-20 text-right text-sm text-gray-500">{scheduledTime ? formatStopTime(scheduledTime) : "N/A"}</span>
-                      <span className="min-w-20 text-right text-sm text-gray-500">{formatStopTime(stop.expectedArrival)}</span>
+                    <div
+                      key={i}
+                      className={`flex justify-between p-3 border-b last:border-b-0 ${
+                        i === 0 ? "bg-blue-100" : ""
+                      }`}
+                    >
+                      {i === 0 && (
+                        <Bus className="w-4 h-4 text-blue-600 mr-2" />
+                      )}
+                      <span className="flex-1">
+                        {i + 1}. {stop.stopPoint?.commonName || stop.naptanId}
+                      </span>
+                      <span className="min-w-20 text-right text-sm text-gray-500">
+                        {scheduledTime ? formatStopTime(scheduledTime) : "N/A"}
+                      </span>
+                      <span className="min-w-20 text-right text-sm text-gray-500">
+                        {formatStopTime(stop.expectedArrival)}
+                      </span>
                     </div>
                   );
                 })}
@@ -285,12 +402,27 @@ const LiveBusView = ({
                   <span className="min-w-20 text-right">Actual</span>
                 </div>
                 {vehicleJourneyData.map((stop, i) => {
-                  const time = stop.aimedArrival ? `${new Date().toISOString().split("T")[0]}T${stop.aimedArrival}` : null;
+                  const time = stop.aimedArrival
+                    ? `${new Date().toISOString().split("T")[0]}T${
+                        stop.aimedArrival
+                      }`
+                    : null;
                   return (
-                    <div key={stop.id || i} className={`flex justify-between p-3 border-b last:border-b-0 ${i === 0 ? "bg-blue-100" : ""}`}>
-                      <span className="flex-1">{i + 1}. {stop.name}</span>
-                      <span className="min-w-20 text-right text-sm text-gray-500">{time ? formatStopTime(time) : "N/A"}</span>
-                      <span className="min-w-20 text-right text-sm text-gray-500">N/A</span>
+                    <div
+                      key={stop.id || i}
+                      className={`flex justify-between p-3 border-b last:border-b-0 ${
+                        i === 0 ? "bg-blue-100" : ""
+                      }`}
+                    >
+                      <span className="flex-1">
+                        {i + 1}. {stop.name}
+                      </span>
+                      <span className="min-w-20 text-right text-sm text-gray-500">
+                        {time ? formatStopTime(time) : "N/A"}
+                      </span>
+                      <span className="min-w-20 text-right text-sm text-gray-500">
+                        N/A
+                      </span>
                     </div>
                   );
                 })}
@@ -305,7 +437,18 @@ const LiveBusView = ({
             {journeyDataSource === "tfl" && (
               <div className="mt-2 text-xs text-yellow-700 p-2 bg-yellow-50 border border-yellow-200 rounded flex items-start">
                 <AlertTriangle className="w-3 h-3 mt-0.5 mr-1" />
-                <span>Scheduled times not available. Check full timetable on <a href="https://bustimes.org" target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">bustimes.org</a>.</span>
+                <span>
+                  Scheduled times not available. Check full timetable on{" "}
+                  <a
+                    href="https://bustimes.org"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-blue-600 hover:underline"
+                  >
+                    bustimes.org
+                  </a>
+                  .
+                </span>
               </div>
             )}
           </div>
@@ -313,28 +456,42 @@ const LiveBusView = ({
 
         {/* Vehicle Tracker Map Modal */}
         {isTrackingVehicle && (
-          <div className={`fixed inset-0 ${themeClasses.bg} bg-opacity-50 flex items-center justify-center z-50 p-4`}>
+          <div
+            className={`fixed inset-0 ${themeClasses.bg} bg-opacity-50 flex items-center justify-center z-50 p-4`}
+          >
             <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl h-[80vh] relative">
               <div className="sticky top-0 bg-white p-4 border-b border-gray-200 flex items-center justify-between">
                 <h3 className="text-lg font-bold">Vehicle Tracker</h3>
-                <button onClick={() => setIsTrackingVehicle(false)} className="p-1 rounded-full hover:bg-gray-100">
+                <button
+                  onClick={() => setIsTrackingVehicle(false)}
+                  className="p-1 rounded-full hover:bg-gray-100"
+                >
                   <X className="w-5 h-5 text-gray-600" />
                 </button>
               </div>
               <div className="h-[calc(100%-60px)] w-full">
                 <BusMapComponent
                   stops={
-                    (liveVehicleJourney?.length
-                      ? liveVehicleJourney.filter(s => s.stopPoint?.lat).map(s => ({
-                          lat: s.stopPoint.lat,
-                          lng: s.stopPoint.lon,
-                          stopName: s.stopPoint.commonName || s.naptanId,
-                        }))
-                      : vehicleJourneyData?.map(s => ({ lat: s.lat, lng: s.lon, stopName: s.name })) || [])
+                    liveVehicleJourney?.length
+                      ? liveVehicleJourney
+                          .filter((s) => s.stopPoint?.lat)
+                          .map((s) => ({
+                            lat: s.stopPoint.lat,
+                            lng: s.stopPoint.lon,
+                            stopName: s.stopPoint.commonName || s.naptanId,
+                          }))
+                      : vehicleJourneyData?.map((s) => ({
+                          lat: s.lat,
+                          lng: s.lon,
+                          stopName: s.name,
+                        })) || []
                   }
                   vehicleLocation={
                     liveVehicleJourney?.[0]?.stopPoint
-                      ? { lat: liveVehicleJourney[0].stopPoint.lat, lng: liveVehicleJourney[0].stopPoint.lon }
+                      ? {
+                          lat: liveVehicleJourney[0].stopPoint.lat,
+                          lng: liveVehicleJourney[0].stopPoint.lon,
+                        }
                       : null
                   }
                   userLocation={userLocation || null}
@@ -350,22 +507,31 @@ const LiveBusView = ({
   // --- Render: Main View ---
   return (
     <div className="space-y-4">
-      {/* Location */}
-      <div className={`${themeClasses.bg} rounded-xl shadow p-4 border ${themeClasses.border}`}>
-        <div className="flex items-center space-x-2">
-          <Locate className="w-5 h-5 text-blue-600" />
-          {locationError ? (
-            <span className="text-red-600 text-sm">
-              {locationError}{" "}
-              <button onClick={getCurrentLocation} className="text-blue-600 underline">Retry</button>
-            </span>
-          ) : userLocation ? (
-            <span className="text-sm text-gray-600">Nearby stops loaded</span>
-          ) : (
-            <span className="text-sm text-gray-600">Finding your location...</span>
-          )}
+      {/* Location - Only show if there's an error or no location yet */}
+      {(!userLocation || locationError) && (
+        <div
+          className={`${themeClasses.bg} rounded-xl shadow p-4 border ${themeClasses.border}`}
+        >
+          <div className="flex items-center space-x-2">
+            <Locate className="w-5 h-5 text-blue-600" />
+            {locationError ? (
+              <span className="text-red-600 text-sm">
+                {locationError}{" "}
+                <button
+                  onClick={getCurrentLocation}
+                  className="text-blue-600 underline"
+                >
+                  Retry
+                </button>
+              </span>
+            ) : (
+              <span className="text-sm text-gray-600">
+                Finding your location...
+              </span>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Nearby Stops */}
       <div className={`${themeClasses.bg} rounded-xl shadow p-4`}>
@@ -378,6 +544,16 @@ const LiveBusView = ({
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
+        </div>
+        {/* View All Stops Map Button - Top Right of Nearby Stops Card */}
+        <div className="flex justify-end mb-3">
+          <button
+            onClick={() => setShowAllStopsMap(true)}
+            className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <MapIcon className="w-4 h-4" />
+            <span>View All Stops Map</span>
+          </button>
         </div>
 
         {loading ? (
@@ -394,13 +570,16 @@ const LiveBusView = ({
                 key={stop.naptanId}
                 onClick={() => handleStopSelect(stop)}
                 className={`flex justify-between items-center p-3 rounded cursor-pointer ${
-                  selectedStop?.naptanId === stop.naptanId ? "bg-blue-50 border border-blue-200" : "hover:bg-gray-50"
+                  selectedStop?.naptanId === stop.naptanId
+                    ? "bg-blue-50 border border-blue-200"
+                    : "hover:bg-gray-50"
                 }`}
               >
                 <div>
                   <p className="font-medium">{stop.commonName}</p>
                   <p className="text-xs text-gray-500">
-                    {stop.indicator && `${stop.indicator} • `}{stop.distance?.toFixed(0)}m
+                    {stop.indicator && `${stop.indicator} • `}
+                    {stop.distance?.toFixed(0)}m
                   </p>
                 </div>
                 <button
@@ -411,7 +590,9 @@ const LiveBusView = ({
                 >
                   <Star
                     className={`w-5 h-5 ${
-                      favorites.has(stop.naptanId) ? "text-yellow-500 fill-current" : "text-gray-400"
+                      favorites.has(stop.naptanId)
+                        ? "text-yellow-500 fill-current"
+                        : "text-gray-400"
                     }`}
                   />
                 </button>
@@ -426,14 +607,19 @@ const LiveBusView = ({
         <div className={`${themeClasses.bg} rounded-xl shadow p-4`}>
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h3 className="font-bold">{selectedStop.commonName}{selectedStop.indicator && ` (${selectedStop.indicator})`}</h3>
-              <p className="text-sm text-gray-500">Stop ID: {selectedStop.naptanId}</p>
+              <h3 className="font-bold">
+                {selectedStop.commonName}
+                {selectedStop.indicator && ` (${selectedStop.indicator})`}
+              </h3>
+              <p className="text-sm text-gray-500">
+                Stop ID: {selectedStop.naptanId}
+              </p>
             </div>
             <button
               onClick={() => setShowMap(!showMap)}
               className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200"
             >
-              <Map className="w-5 h-5" />
+              <MapIcon className="w-5 h-5" />
             </button>
           </div>
 
@@ -448,8 +634,16 @@ const LiveBusView = ({
               onClick={toggleTimeFormat}
               className="flex items-center space-x-1 text-sm text-blue-700"
             >
-              {timeFormat === "minutes" ? <CalendarClock className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
-              <span>{timeFormat === "minutes" ? "Switch to HH:MM" : "Switch to Minutes"}</span>
+              {timeFormat === "minutes" ? (
+                <CalendarClock className="w-4 h-4" />
+              ) : (
+                <Clock className="w-4 h-4" />
+              )}
+              <span>
+                {timeFormat === "minutes"
+                  ? "Switch to HH:MM"
+                  : "Switch to Minutes"}
+              </span>
             </button>
           </div>
 
@@ -458,29 +652,41 @@ const LiveBusView = ({
           ) : (
             <div className="space-y-2">
               {combinedArrivals.map((arrival, i) => {
-                const status = calculateServiceStatus(arrival.expectedArrival, arrival.scheduledArrival);
+                const status = calculateServiceStatus(
+                  arrival.expectedArrival,
+                  arrival.scheduledArrival
+                );
                 const isLive = !arrival.isScheduled;
                 return (
                   <div
                     key={i}
                     onClick={() => handleArrivalClick(arrival)}
                     className={`flex justify-between items-start p-3 rounded cursor-pointer border ${
-                      isLive ? "bg-blue-50 border-blue-100" : "bg-green-50 border-green-100"
+                      isLive
+                        ? "bg-blue-50 border-blue-100"
+                        : "bg-green-50 border-green-100"
                     }`}
                   >
                     <div className="flex-1">
                       <div className="flex justify-between">
                         <p className="font-medium">
-                          {arrival.lineId?.toUpperCase()} → {arrival.destinationName}
+                          {arrival.lineId?.toUpperCase()} →{" "}
+                          {arrival.destinationName}
                         </p>
                         <span className="text-sm text-gray-700">
-                          {formatArrivalTimeForList(arrival.expectedArrival, arrival.scheduledArrival)}
+                          {formatArrivalTimeForList(
+                            arrival.expectedArrival,
+                            arrival.scheduledArrival
+                          )}
                         </span>
                       </div>
                       {isLive && status.status !== "On Time" && (
                         <div className="flex items-center mt-1 text-xs">
                           <AlertTriangle className="w-3 h-3 mr-1" />
-                          <span className={status.color}>{status.status}{status.minutes > 0 && ` by ${status.minutes} min`}</span>
+                          <span className={status.color}>
+                            {status.status}
+                            {status.minutes > 0 && ` by ${status.minutes} min`}
+                          </span>
                         </div>
                       )}
                       {arrival.isScheduled && (
@@ -495,6 +701,82 @@ const LiveBusView = ({
               })}
             </div>
           )}
+        </div>
+      )}
+      {/* All Stops Map Modal */}
+      {showAllStopsMap && (
+        <div
+          className={`fixed inset-0 ${themeClasses.bg} bg-opacity-50 flex items-center justify-center z-50 p-4`}
+        >
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl h-[85vh] relative">
+            <div className="sticky top-0 bg-white p-4 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-lg font-bold">All Nearby Stops</h3>
+              <button
+                onClick={() => {
+                  setShowAllStopsMap(false);
+                  setSelectedStopForMap(null);
+                }}
+                className="p-1 rounded-full hover:bg-gray-100"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+
+            <div className="h-[calc(100%-60px)] w-full">
+              <BusMapComponent
+                stops={nearestStops.map((stop) => ({
+                  lat: stop.lat,
+                  lng: stop.lon,
+                  stopName: stop.commonName || stop.indicator || "Bus Stop",
+                  naptanId: stop.naptanId,
+                }))}
+                userLocation={userLocation || null}
+                onMarkerClick={(stop) => {
+                  setSelectedStopForMap(stop);
+                }}
+              />
+            </div>
+
+            {/* Stop Info Panel (slides in from right or appears below on mobile) */}
+            {selectedStopForMap && (
+              <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 max-h-40 overflow-y-auto">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h4 className="font-bold">{selectedStopForMap.stopName}</h4>
+                    <p className="text-sm text-gray-500">
+                      Stop ID: {selectedStopForMap.naptanId}
+                    </p>
+                    <div className="mt-2 space-y-1">
+                      {getArrivalsForStop(selectedStopForMap).length === 0 ? (
+                        <p className="text-gray-500 text-sm">
+                          No upcoming arrivals
+                        </p>
+                      ) : (
+                        getArrivalsForStop(selectedStopForMap).map((arr, i) => (
+                          <div key={i} className="text-sm">
+                            <span className="font-medium">
+                              {arr.lineId?.toUpperCase()}
+                            </span>{" "}
+                            → {arr.destinationName} •{" "}
+                            {formatArrivalTimeForList(
+                              arr.expectedArrival,
+                              arr.scheduledArrival
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedStopForMap(null)}
+                    className="p-1 text-gray-500 hover:text-gray-800"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

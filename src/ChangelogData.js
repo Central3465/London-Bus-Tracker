@@ -1,5 +1,20 @@
 export const CHANGELOG = [
   {
+    version: "v1.3.0",
+    date: "2025-10-26",
+    highlights: ["Updated LiveBusView + Improvements + Hotfix"],
+    entries: [
+      {
+        type: "feature",
+        text: "We have added a Show All Stops Map button by the Nearby Stops search bar in the Live Bus View page."
+      },
+      {
+        type: "improvement",
+        text: "The Location UI is now hidden once it knows your location."
+      }
+    ],
+  },
+  {
     version: "v1.2.0",
     date: "2025-10-25",
     highlights: ["Improvement & Hotfix!"],

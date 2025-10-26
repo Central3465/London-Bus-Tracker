@@ -99,6 +99,7 @@ const BusMapComponent = ({
   vehicleLocation = null,
   userLocation = null,
   multipleVehicles = null,
+  onMarkerClick
 }) => {
   // Default center (London-ish)
   const defaultCenter = [51.5074, -0.1278];
@@ -116,14 +117,19 @@ const BusMapComponent = ({
 
       {/* Plot all stops */}
       {stops.map((stop, i) => (
-        <Marker key={i} position={[stop.lat, stop.lng]} icon={busStopIcon}>
+        <Marker
+          key={i}
+          position={[stop.lat, stop.lng]}
+          icon={busStopIcon}
+          eventHandlers={{
+            click: () => onMarkerClick && onMarkerClick(stop),
+          }}
+        >
           <Popup>
-            <strong>{stop.stopName || stop.commonName || "Bus Stop"}</strong>
-            <br />({stop.lat.toFixed(5)}, {stop.lng.toFixed(5)})
+            <strong>{stop.stopName || "Bus Stop"}</strong>
           </Popup>
         </Marker>
       ))}
-
       {/* Bus marker */}
       {vehicleLocation && (
         <Marker

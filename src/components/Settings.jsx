@@ -186,6 +186,33 @@ const DevToolsSection = ({ currentThemeClasses, user }) => {
     }
   };
 
+  // 👇 NEW: Unban a user
+  const handleUnban = async (userId, email) => {
+    if (!window.confirm(`Are you sure you want to unban ${email}?`)) return;
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/admin/unban`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({ userId }),
+        }
+      );
+      if (res.ok) {
+        alert(`✅ ${email} unbanned!`);
+        fetchAllUsers(); // refresh list
+      } else {
+        const data = await res.json();
+        alert(`❌ Unban failed: ${data.error || "Unknown error"}`);
+      }
+    } catch (err) {
+      alert(`❌ Network error: ${err.message}`);
+    }
+  };
+
   // 👇 NEW: Restrict a user (toggle)
   const handleRestrict = async (userId, email, isCurrentlyRestricted) => {
     const action = isCurrentlyRestricted ? "lift restriction" : "restrict";
@@ -399,14 +426,21 @@ const DevToolsSection = ({ currentThemeClasses, user }) => {
                   )}
                 </div>
                 <div className="flex flex-col gap-1">
-                  {!u.banned ? (
+                  {u.banned ? (
+                    <button
+                      onClick={() => handleUnban(u.id, u.email)}
+                      className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-1 rounded"
+                    >
+                      Unban
+                    </button>
+                  ) : (
                     <button
                       onClick={() => handleBan(u.id, u.email)}
                       className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded"
                     >
                       Ban
                     </button>
-                  ) : null}
+                  )}
                   <button
                     onClick={() => handleRestrict(u.id, u.email, u.restricted)}
                     className={`text-xs px-2 py-1 rounded ${

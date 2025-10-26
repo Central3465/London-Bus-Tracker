@@ -208,6 +208,31 @@ router.post("/admin/ban", authenticateToken, async (req, res) => {
   }
 });
 
+// Unban a user
+router.post("/admin/unban", authenticateToken, async (req, res) => {
+  if (req.user.email !== "hanlinbai667@gmail.com") {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  const { userId } = req.body;
+  try {
+    const db = await getDB();
+    if (!db.users[userId]) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    db.users[userId] = {
+      ...db.users[userId],
+      banned: false,
+      banReason: null,
+      bannedAt: null,
+    };
+    await saveDB(db);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Unban error:", err);
+    res.status(500).json({ error: "Failed to unban user" });
+  }
+});
+
 // Restrict a user (e.g., disable Plus features)
 router.post("/admin/restrict", authenticateToken, async (req, res) => {
   if (req.user.email !== "hanlinbai667@gmail.com") {
@@ -466,8 +491,20 @@ router.post("/login", async (req, res) => {
   const userId = email.split("@")[0];
   const user = db.users[userId];
 
+  if (!user) {
+    return res.status(401).json({ error: "Invalid credentials" });
+  }
+
   if (user.banned) {
-    return res.status(403).json({ error: "Account banned", banned: true });
+    const appealMessage = `
+    Your account has been banned for: "${user.banReason}".
+    If you believe this was a mistake, you can appeal by submitting a ban appeal on the Submit A Request page with your account email and a brief explanation.
+  `.trim();
+    return res.status(403).json({
+      error: appealMessage,
+      banned: true,
+      banReason: user.banReason,
+    });
   }
 
   if (user.restricted) {
@@ -660,7 +697,9 @@ router.post("/submit-request", async (req, res) => {
   const { type, subject, message, email } = req.body;
 
   if (!type || !subject || !message) {
-    return res.status(400).json({ error: "Type, subject, and message are required." });
+    return res
+      .status(400)
+      .json({ error: "Type, subject, and message are required." });
   }
 
   const logFilePath = path.join(__dirname, "..", "logs", "user_requests.log");
@@ -668,7 +707,9 @@ router.post("/submit-request", async (req, res) => {
   await fs.ensureDir(path.dirname(logFilePath));
 
   const timestamp = new Date().toISOString();
-  const logEntry = `[${timestamp}] Type: ${type} | Subject: ${subject} | Email: ${email || "N/A"}\nMessage: ${message}\n---\n`;
+  const logEntry = `[${timestamp}] Type: ${type} | Subject: ${subject} | Email: ${
+    email || "N/A"
+  }\nMessage: ${message}\n---\n`;
 
   try {
     await fs.appendFile(logFilePath, logEntry, "utf8");
@@ -676,7 +717,9 @@ router.post("/submit-request", async (req, res) => {
     res.json({ success: true, message: "Request received successfully." });
   } catch (err) {
     console.error("Error saving request:", err);
-    res.status(500).json({ error: "Failed to save your request. Please try again." });
+    res
+      .status(500)
+      .json({ error: "Failed to save your request. Please try again." });
   }
 });
 

@@ -106,6 +106,7 @@ const SubmitRequest = () => {
           >
             <option value="suggestion">Suggestion</option>
             <option value="bug">Bug Report</option>
+            <option value="ban-appeal">Ban Appeal</option>
             <option value="contact">General Contact</option>
           </select>
         </div>
@@ -138,7 +139,7 @@ const SubmitRequest = () => {
 
         <div className="mb-4">
           <label className="block text-sm font-medium mb-1">
-            Email (Optional)
+            Email Address
           </label>
           <input
             type="email"
@@ -147,6 +148,7 @@ const SubmitRequest = () => {
             onChange={handleChange}
             className="w-full p-2 border rounded"
             placeholder="your@email.com"
+            required
           />
         </div>
 

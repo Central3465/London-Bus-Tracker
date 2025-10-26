@@ -19,15 +19,16 @@
       "name": "Andrew Hick",
       "password": "123123",
       "subscription": {
-        "isActive": false,
-        "plan": null,
-        "daysRemaining": 0,
-        "expiresAt": null,
+        "isActive": true,
+        "plan": "Trial",
+        "daysRemaining": 2,
+        "expiresAt": "2025-10-28T08:44:19.348Z",
         "stripeSubscriptionId": null
       },
+      "restricted": true,
       "banned": true,
-      "banReason": "fucking dickhead",
-      "bannedAt": "2025-10-24T11:34:58.033Z"
+      "banReason": "Abuse & Harassment",
+      "bannedAt": "2025-10-26T08:45:14.818Z"
     }
   },
   "trialCodes": {
@@ -52,6 +53,14 @@
       "maxUses": 1,
       "usedBy": [
         "legendbai"
+      ]
+    },
+    "TRIAL-WUI38I": {
+      "expiresAt": "2025-11-02T08:43:58.286Z",
+      "maxDays": 2,
+      "maxUses": 1,
+      "usedBy": [
+        "andrewhick"
       ]
     }
   }
