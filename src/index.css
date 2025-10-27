@@ -45,3 +45,7 @@ textarea::placeholder {
     background-position: 0% 50%;
   }
 }
+
+.mobile-bottom-nav {
+  padding-bottom: var(--safe-area-bottom, 0px);
+}

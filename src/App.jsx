@@ -1,6 +1,7 @@
 // src/App.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { Geolocation } from "@capacitor/geolocation";
+import { Capacitor } from "@capacitor/core";
 import {
   Search,
   MapPin,
@@ -134,6 +135,30 @@ const App = () => {
       setCustomAlerts((prev) => prev.filter((a) => a.id !== id))
     }
   />;
+  let SafeArea;
+  if (Capacitor.getPlatform() !== "web") {
+    const capacitor = import("@capacitor/core");
+    SafeArea = capacitor.SafeArea;
+    useEffect(() => {
+      const applySafeArea = async () => {
+        try {
+          const insets = await SafeArea.getSafeAreaInsets();
+          document.documentElement.style.setProperty(
+            "--safe-area-bottom",
+            `${insets.bottom}px`
+          );
+        } catch (e) {
+          console.warn("SafeArea not available, defaulting to 0");
+          document.documentElement.style.setProperty(
+            "--safe-area-bottom",
+            "0px"
+          );
+        }
+      };
+
+      applySafeArea();
+    }, []);
+  }
 
   useEffect(() => {
     const savedIcon = localStorage.getItem("appIcon") || "default";
@@ -895,23 +920,6 @@ const App = () => {
               </div>
             </div>
 
-            {/* ... mobile menu button remains the same */}
-            <button
-              className="md:hidden flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100/50 focus:outline-none"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              aria-label="Toggle navigation menu"
-            >
-              {isMobileMenuOpen ? (
-                <X className="w-6 h-6 text-gray-600" />
-              ) : (
-                <>
-                  <div className="w-6 h-0.5 bg-gray-600 mb-1.5"></div>
-                  <div className="w-6 h-0.5 bg-gray-600 my-0.5"></div>
-                  <div className="w-6 h-0.5 bg-gray-600 mt-1.5"></div>
-                </>
-              )}
-            </button>
-
             {/* ... live data status remains the same */}
             <div className="hidden md:block">
               <span className="text-sm text-green-600 font-medium flex items-center">
@@ -920,31 +928,74 @@ const App = () => {
               </span>
             </div>
           </div>
-
-          {/* --- UPDATE MOBILE MENU TO USE LINKS INSTEAD OF BUTTONS --- */}
-          {isMobileMenuOpen && (
-            <div className="md:hidden mt-2 pb-4 border-t border-gray-100">
-              <div className="flex flex-col space-y-2 pt-2">
-                {allTabs.map((tab) => (
-                  <Link
-                    key={tab.id}
-                    to={tab.path}
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className={`flex items-center space-x-3 px-4 py-3 rounded-lg font-medium ${
-                      window.location.pathname === tab.path
-                        ? "bg-blue-600 text-white"
-                        : `${getTextColor(
-                            "text-gray-700"
-                          )} hover:bg-gray-100/50`
-                    }`}
-                  >
-                    <tab.icon className="w-5 h-5" />
-                    <span>{tab.label}</span>
-                  </Link>
-                ))}
-              </div>
+          {/* Bottom Navigation Bar — Mobile Only */}
+          <div
+            className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 z-40"
+            style={{ paddingBottom: "var(--safe-area-bottom, 0px)" }}
+          >
+            <div className="flex justify-around items-center px-2 py-2">
+              {primaryTabs.map((tab) => (
+                <Link
+                  key={tab.id}
+                  to={tab.path}
+                  className={`flex flex-col items-center justify-center px-2 py-2 rounded-lg transition-all ${
+                    window.location.pathname === tab.path
+                      ? "text-blue-600 dark:text-blue-400"
+                      : `${getTextColor(
+                          "text-gray-600",
+                          false
+                        )} hover:text-gray-900 dark:hover:text-gray-300`
+                  }`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <tab.icon className="w-6 h-6" />
+                  <span className="text-xs mt-1">
+                    {tab.label.split(" ")[0]}
+                  </span>
+                </Link>
+              ))}
+              {/* More Tab */}
+              <button
+                onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
+                className={`flex flex-col items-center justify-center px-2 py-2 rounded-lg transition-all ${
+                  isMoreMenuOpen
+                    ? "text-blue-600 dark:text-blue-400"
+                    : `${getTextColor(
+                        "text-gray-600",
+                        false
+                      )} hover:text-gray-900 dark:hover:text-gray-300`
+                }`}
+              >
+                <Menu className="w-6 h-6" />
+                <span className="text-xs mt-1">More</span>
+              </button>
             </div>
-          )}
+
+            {/* Collapsible "More" Menu - slides up from bottom */}
+            {isMoreMenuOpen && (
+              <div className="absolute bottom-14 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 rounded-t-xl shadow-lg max-h-60 overflow-y-auto animate-in slide-in-from-bottom">
+                <div className="py-2">
+                  {moreTabs.map((tab) => (
+                    <Link
+                      key={tab.id}
+                      to={tab.path}
+                      onClick={() => {
+                        setIsMoreMenuOpen(false);
+                      }}
+                      className={`flex items-center space-x-3 px-6 py-3 text-sm font-medium ${
+                        window.location.pathname === tab.path
+                          ? "text-blue-600 dark:text-blue-400"
+                          : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      }`}
+                    >
+                      <tab.icon className="w-5 h-5" />
+                      <span>{tab.label}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

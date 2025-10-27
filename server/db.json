@@ -13,22 +13,18 @@
         "stripeSubscriptionId": "sub_1SL5riGsGX4c72uBgI4kdWCQ"
       }
     },
-    "andrewhick": {
-      "id": "andrewhick",
-      "email": "andrewhick@gmail.com",
-      "name": "Andrew Hick",
-      "password": "123123",
+    "test": {
+      "id": "test",
+      "email": "test@test.com",
+      "name": "Google Play Store",
+      "password": "test123",
       "subscription": {
-        "isActive": true,
-        "plan": "Trial",
-        "daysRemaining": 2,
-        "expiresAt": "2025-10-28T08:44:19.348Z",
+        "isActive": false,
+        "plan": null,
+        "daysRemaining": 0,
+        "expiresAt": null,
         "stripeSubscriptionId": null
-      },
-      "restricted": true,
-      "banned": true,
-      "banReason": "Abuse & Harassment",
-      "bannedAt": "2025-10-26T08:45:14.818Z"
+      }
     }
   },
   "trialCodes": {
